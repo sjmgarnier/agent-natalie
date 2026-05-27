@@ -5,6 +5,8 @@ import sqlite3
 from pathlib import Path
 
 import frontmatter as fm
+import numpy as np
+from fastembed import TextEmbedding
 
 
 # ── Indexing ──────────────────────────────────────────────────────────────────
@@ -97,3 +99,93 @@ def keyword_search(
         params["col"] = collection
     rows = db.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Embeddings ────────────────────────────────────────────────────────────────
+
+_embedding_model: TextEmbedding | None = None
+
+
+def _get_embedding_model(model_name: str = "BAAI/bge-small-en-v1.5") -> TextEmbedding:
+    global _embedding_model
+    if _embedding_model is None:
+        _embedding_model = TextEmbedding(model_name=model_name)
+    return _embedding_model
+
+
+def embed_notes(
+    db: sqlite3.Connection,
+    model_name: str = "BAAI/bge-small-en-v1.5",
+    batch_size: int = 32,
+) -> int:
+    """Generate and store embeddings for notes without one. Returns count embedded."""
+    rows = db.execute(
+        """
+        SELECT id, title, body FROM notes
+        WHERE id NOT IN (SELECT note_id FROM embeddings)
+        """
+    ).fetchall()
+    if not rows:
+        return 0
+
+    model = _get_embedding_model(model_name)
+    texts = [f"{r['title'] or ''}\n{r['body'] or ''}" for r in rows]
+
+    count = 0
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i : i + batch_size]
+        batch_rows = rows[i : i + batch_size]
+        for row, vec in zip(batch_rows, model.embed(batch_texts)):
+            arr = np.array(vec, dtype=np.float32)
+            db.execute(
+                "INSERT OR REPLACE INTO embeddings (note_id, vector) VALUES (?, ?)",
+                (row["id"], arr.tobytes()),
+            )
+            count += 1
+    db.commit()
+    return count
+
+
+def semantic_search(
+    db: sqlite3.Connection,
+    query: str,
+    limit: int = 10,
+    collection: str | None = None,
+    model_name: str = "BAAI/bge-small-en-v1.5",
+) -> list[dict]:
+    """Semantic similarity search using stored embeddings."""
+    model = _get_embedding_model(model_name)
+    query_vec = np.array(next(model.embed([query])), dtype=np.float32)
+
+    collection_clause = "AND n.collection = ?" if collection else ""
+    params: list = [] if not collection else [collection]
+    rows = db.execute(
+        f"""
+        SELECT n.id, n.path, n.title, n.body, e.vector
+        FROM notes n JOIN embeddings e ON e.note_id = n.id
+        WHERE 1=1 {collection_clause}
+        """,
+        params,
+    ).fetchall()
+    if not rows:
+        return []
+
+    scored = []
+    for row in rows:
+        note_vec = np.frombuffer(row["vector"], dtype=np.float32)
+        norm = np.linalg.norm(note_vec)
+        if norm == 0:
+            continue
+        score = float(np.dot(query_vec, note_vec / norm))
+        scored.append((score, row))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [
+        {
+            "path": row["path"],
+            "title": row["title"],
+            "score": round(score, 4),
+            "excerpt": (row["body"] or "")[:200],
+        }
+        for score, row in scored[:limit]
+    ]

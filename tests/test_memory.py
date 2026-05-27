@@ -1,7 +1,31 @@
 import json
 import pytest
+import numpy as np
 from pathlib import Path
+from unittest.mock import patch
 from natalie.features.memory import index_note, get_notes, remove_note, keyword_search
+from natalie.features.memory import embed_notes, semantic_search
+
+
+class _FakeEmbedding:
+    """Fake fastembed TextEmbedding — avoids downloading the model during tests."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def embed(self, texts):
+        for _ in texts:
+            vec = np.zeros(384, dtype=np.float32)
+            vec[0] = 1.0
+            yield vec / np.linalg.norm(vec)
+
+
+@pytest.fixture(autouse=True)
+def reset_embedding_model():
+    """Reset the module-level model cache between tests."""
+    import natalie.features.memory as mem
+    mem._embedding_model = None
+    yield
+    mem._embedding_model = None
 
 
 def _write_note(vault: Path, rel_path: str, content: str) -> Path:
@@ -70,3 +94,42 @@ def test_fts_returns_matching_notes(vault, db):
     results = keyword_search(db, "banana")
     assert len(results) == 1
     assert results[0]["path"] == "alpha.md"
+
+
+def test_embed_notes_stores_vectors(vault, db):
+    note = _write_note(vault, "embed-me.md", "---\ntitle: Embed\n---\nContent to embed.")
+    index_note(db, vault, note)
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        embed_notes(db, model_name="BAAI/bge-small-en-v1.5")
+    row = db.execute("SELECT * FROM embeddings").fetchone()
+    assert row is not None
+    vec = np.frombuffer(row["vector"], dtype=np.float32)
+    assert vec.shape == (384,)
+
+
+def test_embed_notes_skips_already_embedded(vault, db):
+    note = _write_note(vault, "skip-me.md", "Content")
+    index_note(db, vault, note)
+    embed_call_count = []
+    class CountingFake(_FakeEmbedding):
+        def embed(self, texts):
+            text_list = list(texts)
+            embed_call_count.append(len(text_list))
+            yield from super().embed(text_list)
+    with patch("natalie.features.memory.TextEmbedding", CountingFake):
+        embed_notes(db)  # first call — embeds 1
+        embed_notes(db)  # second call — nothing to embed
+    assert sum(embed_call_count) == 1  # only called once total
+
+
+def test_semantic_search_returns_results(vault, db):
+    _write_note(vault, "sem-a.md", "---\ntitle: Apple\n---\nfruit salad")
+    _write_note(vault, "sem-b.md", "---\ntitle: Bicycle\n---\ntransport wheels")
+    for p in vault.glob("sem-*.md"):
+        index_note(db, vault, p)
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        embed_notes(db)
+        results = semantic_search(db, "fruit", model_name="BAAI/bge-small-en-v1.5")
+    assert len(results) >= 1
+    assert "path" in results[0]
+    assert "score" in results[0]
