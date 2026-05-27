@@ -3,6 +3,7 @@ import typer
 from .vault import require_vault
 from .config import load_config
 from .db import get_db
+from .generate import render_instructions
 
 app = typer.Typer(
     name="natalie",
@@ -40,6 +41,32 @@ def sync(
     from .features.sync import sync_vault
     result = sync_vault(db, vault, config, full=full, model_name=config.memory.embedding_model)
     typer.echo(f"Synced: {result['indexed']} indexed, {result['removed']} removed, {result['embedded']} embedded.")
+
+
+@app.command()
+def config(
+    persona: str | None = typer.Option(None, "--persona", help="Persona name to activate."),
+) -> None:
+    """Update vault configuration and regenerate CLAUDE.md / AGENTS.md."""
+    vault = require_vault()
+    cfg = load_config(vault)
+    if persona:
+        cfg.persona.name = persona
+        config_path = vault / "Natalie" / "config.toml"
+        try:
+            import tomllib
+            with open(config_path, "rb") as f:
+                data = dict(tomllib.load(f))
+        except FileNotFoundError:
+            data = {}
+        data.setdefault("persona", {})["name"] = persona
+        import tomli_w
+        config_path.write_bytes(tomli_w.dumps(data).encode())
+    claude_content = render_instructions(cfg, vault, target="claude")
+    agents_content = render_instructions(cfg, vault, target="agents")
+    (vault / "CLAUDE.md").write_text(claude_content, encoding="utf-8")
+    (vault / "AGENTS.md").write_text(agents_content, encoding="utf-8")
+    typer.echo(f"Generated CLAUDE.md and AGENTS.md with persona: {cfg.persona.name}")
 
 
 if __name__ == "__main__":
