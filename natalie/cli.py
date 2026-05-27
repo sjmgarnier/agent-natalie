@@ -194,14 +194,20 @@ def init(
     venv = Path(venv_path).expanduser().resolve()
     server_bin = str(venv / "bin" / "natalie-server")
     natalie_bin = str(venv / "bin" / "natalie")
-    settings = {
+
+    # .mcp.json — canonical Claude Code project-level MCP config (no "type" field)
+    mcp_json = {
         "mcpServers": {
             "natalie": {
                 "command": server_bin,
                 "args": [],
-                "type": "stdio",
             }
-        },
+        }
+    }
+    _merge_json(vault / ".mcp.json", mcp_json)
+
+    # .claude/settings.json — hooks only; preserve existing entries
+    settings = {
         "hooks": {
             "PostToolUse": [
                 {
@@ -211,7 +217,6 @@ def init(
             ]
         },
     }
-    # .claude/settings.json — merge so existing MCPs/hooks/permissions are preserved
     _merge_json(vault / ".claude" / "settings.json", settings)
 
     opencode_cfg = {
