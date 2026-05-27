@@ -32,7 +32,7 @@ def index_note(
     meta = post.metadata
     title = meta.get("title") or note_path.stem
     tags_raw = meta.get("tags", [])
-    tags = json.dumps(tags_raw if isinstance(tags_raw, list) else [tags_raw])
+    tags = json.dumps(tags_raw if isinstance(tags_raw, list) else [tags_raw], default=str)
     body = post.content.strip()
 
     db.execute(
@@ -48,7 +48,7 @@ def index_note(
             collection    = excluded.collection,
             machine_mac   = excluded.machine_mac
         """,
-        (rel, title, tags, json.dumps(meta), body, mtime, collection, machine_mac),
+        (rel, title, tags, json.dumps(meta, default=str), body, mtime, collection, machine_mac),
     )
     db.commit()
 
@@ -68,6 +68,10 @@ def get_notes(db: sqlite3.Connection, collection: str | None = None) -> list[sql
 
 # ── FTS Search ────────────────────────────────────────────────────────────────
 
+def _fts_quote(token: str) -> str:
+    return '"' + token.replace('"', '""') + '"'
+
+
 def keyword_search(
     db: sqlite3.Connection,
     query: str,
@@ -75,7 +79,7 @@ def keyword_search(
     collection: str | None = None,
 ) -> list[dict]:
     """Full-text search over indexed notes. Returns matches ranked by BM25."""
-    fts_query = " ".join(t + "*" for t in query.split() if t)
+    fts_query = " ".join(_fts_quote(t) + "*" for t in query.split() if t)
     if not fts_query:
         return []
 

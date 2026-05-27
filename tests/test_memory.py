@@ -164,3 +164,21 @@ def test_convention_delete(db):
     conv_id = convention_list(db, domain="tasks")[0]["id"]
     convention_delete(db, conv_id)
     assert convention_list(db, domain="tasks") == []
+
+
+def test_index_note_handles_date_frontmatter(vault, db):
+    note = vault / "daily.md"
+    note.write_text("---\ndate: 2024-01-15\ntitle: Daily\n---\nContent.\n")
+    from natalie.features.memory import index_note
+    index_note(db, vault, note)  # must not raise
+    row = db.execute("SELECT frontmatter FROM notes WHERE path = 'daily.md'").fetchone()
+    assert row is not None
+
+
+def test_keyword_search_tolerates_fts_metacharacters(vault, db):
+    from natalie.features.memory import keyword_search
+    # Should not raise, should return empty results
+    results = keyword_search(db, 'how do I (write) "things"')
+    assert isinstance(results, list)
+    results2 = keyword_search(db, "C++ config-file")
+    assert isinstance(results2, list)

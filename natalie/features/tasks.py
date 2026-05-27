@@ -46,7 +46,7 @@ def complete_task(vault: Path, rel_path: str, task_text: str) -> bool:
         return False
     content = full.read_text(encoding="utf-8")
     pattern = re.compile(
-        r"^(\s*)- \[ \] (" + re.escape(task_text) + r")$", re.MULTILINE
+        r"^(\s*)- \[ \] (" + re.escape(task_text) + r")\s*$", re.MULTILINE
     )
     new_content = pattern.sub(r"\g<1>- [x] \g<2>", content)
     if new_content == content:

@@ -58,3 +58,14 @@ def test_complete_task_returns_false_if_not_found(vault):
     _write(vault, "empty.md", "- [ ] Something else\n")
     result = complete_task(vault, "empty.md", "Nonexistent task")
     assert result is False
+
+
+def test_complete_task_handles_trailing_whitespace(vault):
+    from natalie.features.tasks import discover_tasks, complete_task
+    note = vault / "tasks.md"
+    note.write_text("- [ ] Buy groceries  \n")  # two trailing spaces
+    tasks = discover_tasks(vault)
+    assert tasks[0]["text"] == "Buy groceries"
+    result = complete_task(vault, "tasks.md", "Buy groceries")
+    assert result is True
+    assert "[x]" in note.read_text()

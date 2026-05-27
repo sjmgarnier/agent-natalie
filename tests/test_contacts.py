@@ -36,3 +36,12 @@ def test_list_contacts_returns_slugs(vault, config):
     slugs = list_contacts(vault, config)
     assert "alice" in slugs
     assert "bob" in slugs
+
+
+def test_update_contact_handles_content_key(vault, config):
+    from natalie.features.contacts import update_contact, get_contact
+    result = update_contact(vault, config, "alice", {"content": "bio text", "name": "Alice"})
+    assert result["updated"] is True
+    data = get_contact(vault, config, "alice")
+    assert data["content"] == "bio text"
+    assert data["name"] == "Alice"
