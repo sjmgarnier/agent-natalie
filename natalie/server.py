@@ -146,6 +146,26 @@ def note_write(path: str, content: str) -> dict:
     return {"written": True, "path": path}
 
 
+@mcp.tool()
+def convention_list_tool(domain: str | None = None) -> list[dict]:
+    """List established conventions, optionally filtered by domain."""
+    return mem.convention_list(_get_db(), domain=domain)
+
+
+@mcp.tool()
+def convention_add_tool(domain: str, rule: str, source: str = "explicit") -> dict:
+    """Add a convention. source: 'explicit' (user-stated) or 'observed' (pattern noticed)."""
+    conv_id = mem.convention_add(_get_db(), domain=domain, rule=rule, source=source)
+    return {"id": conv_id, "domain": domain, "rule": rule, "source": source}
+
+
+@mcp.tool()
+def convention_delete_tool(convention_id: int) -> dict:
+    """Remove a convention by ID."""
+    mem.convention_delete(_get_db(), convention_id)
+    return {"deleted": True, "id": convention_id}
+
+
 def main() -> None:
     global _vault, _config, _db
     _vault = require_vault()

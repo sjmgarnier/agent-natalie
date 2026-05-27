@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 from natalie.features.memory import index_note, get_notes, remove_note, keyword_search
 from natalie.features.memory import embed_notes, semantic_search
+from natalie.features.memory import convention_add, convention_list, convention_delete
 
 
 class _FakeEmbedding:
@@ -133,3 +134,33 @@ def test_semantic_search_returns_results(vault, db):
     assert len(results) >= 1
     assert "path" in results[0]
     assert "score" in results[0]
+
+
+def test_convention_add_and_list(db):
+    convention_add(db, domain="tasks", rule="Put tasks in the active project note.", source="explicit")
+    conventions = convention_list(db, domain="tasks")
+    assert len(conventions) == 1
+    assert conventions[0]["rule"] == "Put tasks in the active project note."
+    assert conventions[0]["source"] == "explicit"
+
+
+def test_convention_list_filters_by_domain(db):
+    convention_add(db, domain="tasks", rule="Tasks rule", source="explicit")
+    convention_add(db, domain="contacts", rule="Contacts rule", source="explicit")
+    tasks_convs = convention_list(db, domain="tasks")
+    assert len(tasks_convs) == 1
+    assert tasks_convs[0]["domain"] == "tasks"
+
+
+def test_convention_list_all_when_no_domain(db):
+    convention_add(db, domain="tasks", rule="Rule 1", source="explicit")
+    convention_add(db, domain="contacts", rule="Rule 2", source="observed")
+    all_convs = convention_list(db)
+    assert len(all_convs) == 2
+
+
+def test_convention_delete(db):
+    convention_add(db, domain="tasks", rule="To delete", source="explicit")
+    conv_id = convention_list(db, domain="tasks")[0]["id"]
+    convention_delete(db, conv_id)
+    assert convention_list(db, domain="tasks") == []

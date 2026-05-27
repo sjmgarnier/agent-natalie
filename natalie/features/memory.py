@@ -189,3 +189,41 @@ def semantic_search(
         }
         for score, row in scored[:limit]
     ]
+
+
+# ── Conventions ───────────────────────────────────────────────────────────────
+
+def convention_add(
+    db: sqlite3.Connection,
+    domain: str,
+    rule: str,
+    source: str = "explicit",
+) -> int:
+    """Store a convention. source must be 'explicit' or 'observed'. Returns new row ID."""
+    cursor = db.execute(
+        "INSERT INTO conventions (domain, rule, source) VALUES (?, ?, ?)",
+        (domain, rule, source),
+    )
+    db.commit()
+    return cursor.lastrowid
+
+
+def convention_list(
+    db: sqlite3.Connection,
+    domain: str | None = None,
+) -> list[dict]:
+    if domain:
+        rows = db.execute(
+            "SELECT * FROM conventions WHERE domain = ? ORDER BY created_at",
+            (domain,),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM conventions ORDER BY domain, created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def convention_delete(db: sqlite3.Connection, convention_id: int) -> None:
+    db.execute("DELETE FROM conventions WHERE id = ?", (convention_id,))
+    db.commit()
