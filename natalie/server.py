@@ -12,6 +12,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .features import memory as mem
 from .features import tasks as tasks_mod
+from .features import documents as docs_mod
+from .features import contacts as contacts_mod
 from .config import NatalieConfig, load_config
 from .db import init_db
 from .vault import require_vault
@@ -189,6 +191,42 @@ def task_complete(rel_path: str, task_text: str) -> dict:
     vault = _get_vault()
     found = tasks_mod.complete_task(vault, rel_path, task_text)
     return {"completed": found, "path": rel_path, "task": task_text}
+
+
+@mcp.tool()
+def document_file(filename: str, content: str) -> dict:
+    """Save content to the documents cabinet."""
+    return docs_mod.file_document(_get_vault(), _get_config(), filename, content)
+
+
+@mcp.tool()
+def document_retrieve(filename: str) -> str | None:
+    """Retrieve a document by filename. Returns content or None."""
+    return docs_mod.retrieve_document(_get_vault(), _get_config(), filename)
+
+
+@mcp.tool()
+def document_list() -> list[str]:
+    """List all documents in the cabinet."""
+    return docs_mod.list_documents(_get_vault(), _get_config())
+
+
+@mcp.tool()
+def contact_get(slug: str) -> dict | None:
+    """Get a contact card by slug. Returns metadata dict or None."""
+    return contacts_mod.get_contact(_get_vault(), _get_config(), slug)
+
+
+@mcp.tool()
+def contact_update(slug: str, fields: dict) -> dict:
+    """Create or update a contact card. Fields are merged into existing frontmatter."""
+    return contacts_mod.update_contact(_get_vault(), _get_config(), slug, fields)
+
+
+@mcp.tool()
+def contact_list() -> list[str]:
+    """List all contact slugs."""
+    return contacts_mod.list_contacts(_get_vault(), _get_config())
 
 
 def main() -> None:
