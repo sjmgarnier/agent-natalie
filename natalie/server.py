@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import socket
 import sqlite3
 import time
@@ -102,6 +103,12 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
     return results[:limit]
 
 
+def _entry_path(mac: str, title: str | None) -> str:
+    slug = re.sub(r"[^A-Za-z0-9_-]", "-", title or "entry").strip("-") or "entry"
+    uid = uuid.uuid4().hex[:8]
+    return f".natalie/entries/{mac}/{slug}-{uid}.md"
+
+
 @mcp.tool()
 def memory_store(
     content: str,
@@ -118,7 +125,17 @@ def memory_store(
         "INSERT OR REPLACE INTO machines (mac_address, hostname, last_seen) VALUES (?, ?, datetime('now'))",
         (mac, hostname),
     )
-    rel_path = path or f".natalie/entries/{mac}/{title or 'entry'}.md"
+    if path is not None:
+        rel_path = path
+        safe_join(vault, rel_path)  # raises ValueError if path escapes vault
+    else:
+        rel_path = _entry_path(mac, title)
+
+    # Write to disk so note_read can serve the content
+    full = vault / rel_path
+    full.parent.mkdir(parents=True, exist_ok=True)
+    full.write_text(content, encoding="utf-8")
+
     db.execute(
         """
         INSERT INTO notes (path, title, body, last_modified, collection, machine_mac)

@@ -182,3 +182,31 @@ def test_keyword_search_tolerates_fts_metacharacters(vault, db):
     assert isinstance(results, list)
     results2 = keyword_search(db, "C++ config-file")
     assert isinstance(results2, list)
+
+
+def test_memory_store_writes_to_disk(vault, db, monkeypatch):
+    """memory_store must create the file so note_read can return it."""
+    import natalie.server as srv
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    from natalie.config import NatalieConfig
+    monkeypatch.setattr(srv, "_config", NatalieConfig(vault=vault))
+    result = srv.memory_store(content="hello world", title="test-note")
+    assert result["stored"] is True
+    stored_path = vault / result["path"]
+    assert stored_path.exists()
+    assert stored_path.read_text() == "hello world"
+
+
+def test_memory_store_unique_paths_no_collision(vault, db, monkeypatch):
+    """Two stores with the same title must produce distinct files."""
+    import natalie.server as srv
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    from natalie.config import NatalieConfig
+    monkeypatch.setattr(srv, "_config", NatalieConfig(vault=vault))
+    r1 = srv.memory_store(content="first", title="prefs")
+    r2 = srv.memory_store(content="second", title="prefs")
+    assert r1["path"] != r2["path"]
+    assert (vault / r1["path"]).read_text() == "first"
+    assert (vault / r2["path"]).read_text() == "second"
