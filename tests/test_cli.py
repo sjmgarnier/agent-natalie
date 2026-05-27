@@ -39,3 +39,22 @@ def test_config_persona_writes_persona_markers(vault):
     content = (vault / "CLAUDE.md").read_text()
     assert "<!-- agent-natalie:persona:start -->" in content
     assert "<!-- agent-natalie:persona:end -->" in content
+
+
+def test_init_creates_vault_structure(tmp_path):
+    with patch("natalie.cli.require_vault", side_effect=RuntimeError("not found")):
+        result = runner.invoke(app, ["init", str(tmp_path)])
+    assert result.exit_code == 0
+    assert (tmp_path / ".natalie" / "natalie.db").exists()
+    assert (tmp_path / "Natalie" / "config.toml").exists()
+    assert (tmp_path / "CLAUDE.md").exists()
+    assert (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / ".claude" / "settings.json").exists()
+    assert (tmp_path / "opencode.json").exists()
+
+
+def test_init_writes_mcp_entry_to_settings_json(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)])
+    import json
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+    assert "natalie" in settings.get("mcpServers", {})
