@@ -220,12 +220,12 @@ def init(
     _merge_json(vault / ".claude" / "settings.json", settings)
 
     opencode_cfg = {
+        "$schema": "https://opencode.ai/config.json",
         "mcp": {
             "natalie": {
-                "command": server_bin,
-                "args": [],
-                "enabled": True,
                 "type": "local",
+                "command": [server_bin],
+                "enabled": True,
             }
         }
     }
