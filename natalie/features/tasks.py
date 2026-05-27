@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..utils import safe_join
+
 _OPEN_RE = re.compile(r"^(\s*- \[ \] )(.+)$", re.MULTILINE)
 _ANY_RE = re.compile(r"^(\s*- \[[ x]\] )(.+)$", re.MULTILINE)
 
@@ -28,7 +30,7 @@ def discover_tasks(vault: Path) -> list[dict]:
 
 def capture_task(vault: Path, rel_path: str, task_text: str) -> None:
     """Append a new open task to a note (creates the file if missing)."""
-    full = vault / rel_path
+    full = safe_join(vault, rel_path)
     if full.exists():
         existing = full.read_text(encoding="utf-8")
         if not existing.endswith("\n"):
@@ -41,7 +43,7 @@ def capture_task(vault: Path, rel_path: str, task_text: str) -> None:
 
 def complete_task(vault: Path, rel_path: str, task_text: str) -> bool:
     """Mark a specific open task as done. Returns True if found and marked."""
-    full = vault / rel_path
+    full = safe_join(vault, rel_path)
     if not full.exists():
         return False
     content = full.read_text(encoding="utf-8")

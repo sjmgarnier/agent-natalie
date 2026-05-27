@@ -5,6 +5,7 @@ from pathlib import Path
 import frontmatter as fm
 
 from ..config import NatalieConfig
+from ..utils import safe_join
 
 
 def _contacts_dir(vault: Path, config: NatalieConfig) -> Path:
@@ -12,7 +13,8 @@ def _contacts_dir(vault: Path, config: NatalieConfig) -> Path:
 
 
 def _contact_path(vault: Path, config: NatalieConfig, slug: str) -> Path:
-    return _contacts_dir(vault, config) / f"{slug}.md"
+    contacts_dir = _contacts_dir(vault, config)
+    return safe_join(contacts_dir, f"{slug}.md")
 
 
 def update_contact(vault: Path, config: NatalieConfig, slug: str, fields: dict) -> dict:

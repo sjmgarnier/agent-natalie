@@ -16,6 +16,7 @@ from .features import documents as docs_mod
 from .features import contacts as contacts_mod
 from .config import NatalieConfig, load_config
 from .db import init_db
+from .utils import safe_join
 from .vault import require_vault
 
 mcp = FastMCP("natalie")
@@ -42,6 +43,7 @@ def _get_db() -> sqlite3.Connection:
 
 
 def _obsidian_read(vault: Path, rel_path: str) -> str | None:
+    safe_join(vault, rel_path)  # raises ValueError if path escapes vault
     try:
         r = httpx.get(f"http://127.0.0.1:27123/vault/{rel_path}", timeout=2.0)
         if r.status_code == 200:
@@ -53,6 +55,7 @@ def _obsidian_read(vault: Path, rel_path: str) -> str | None:
 
 
 def _obsidian_write(vault: Path, rel_path: str, content: str) -> None:
+    safe_join(vault, rel_path)  # raises ValueError if path escapes vault
     try:
         r = httpx.put(
             f"http://127.0.0.1:27123/vault/{rel_path}",
