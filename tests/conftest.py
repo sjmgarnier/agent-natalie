@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from natalie.db import init_db
+from natalie.db import init_db, get_db
 from natalie.config import load_config
 
 
@@ -23,5 +23,4 @@ def config(vault):
 
 @pytest.fixture
 def db(vault):
-    from natalie.db import get_db
     return get_db(vault)
