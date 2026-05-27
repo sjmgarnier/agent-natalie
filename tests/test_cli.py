@@ -58,3 +58,30 @@ def test_init_writes_mcp_entry_to_settings_json(tmp_path):
     import json
     settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
     assert "natalie" in settings.get("mcpServers", {})
+
+
+def test_init_preserves_existing_mcp_entries(tmp_path):
+    """natalie init must not destroy pre-existing MCP servers in settings.json."""
+    import json
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(json.dumps({
+        "mcpServers": {
+            "github": {"command": "github-mcp", "args": [], "type": "stdio"}
+        }
+    }))
+    runner.invoke(app, ["init", str(tmp_path)])
+    result = json.loads(settings_path.read_text())
+    assert "github" in result["mcpServers"]
+    assert "natalie" in result["mcpServers"]
+
+
+def test_init_preserves_existing_opencode_mcp(tmp_path):
+    """natalie init must not destroy pre-existing MCPs in opencode.json."""
+    import json
+    oc_path = tmp_path / "opencode.json"
+    oc_path.write_text(json.dumps({"mcp": {"other-tool": {"command": "other", "enabled": True}}}))
+    runner.invoke(app, ["init", str(tmp_path)])
+    result = json.loads(oc_path.read_text())
+    assert "other-tool" in result["mcp"]
+    assert "natalie" in result["mcp"]

@@ -112,6 +112,33 @@ Welcome to your Natalie vault.
 """
 
 
+def _deep_merge(base: dict, update: dict) -> None:
+    """Recursively merge update into base in-place."""
+    for key, value in update.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_merge(base[key], value)
+        elif key in base and isinstance(base[key], list) and isinstance(value, list):
+            # For lists, append items not already present (by equality)
+            for item in value:
+                if item not in base[key]:
+                    base[key].append(item)
+        else:
+            base[key] = value
+
+
+def _merge_json(path: Path, update: dict) -> None:
+    """Read existing JSON if present, deep-merge update into it, write back."""
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+    else:
+        existing = {}
+    _deep_merge(existing, update)
+    path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+
 @app.command()
 def init(
     vault_path: str = typer.Argument(..., help="Path to the Obsidian vault (created if missing)."),
@@ -173,9 +200,8 @@ def init(
             ]
         },
     }
-    (vault / ".claude" / "settings.json").write_text(
-        json.dumps(settings, indent=2), encoding="utf-8"
-    )
+    # .claude/settings.json — merge so existing MCPs/hooks/permissions are preserved
+    _merge_json(vault / ".claude" / "settings.json", settings)
 
     opencode_cfg = {
         "mcp": {
@@ -187,18 +213,16 @@ def init(
             }
         }
     }
-    (vault / "opencode.json").write_text(
-        json.dumps(opencode_cfg, indent=2), encoding="utf-8"
-    )
+    # opencode.json — merge so other MCP entries are preserved
+    _merge_json(vault / "opencode.json", opencode_cfg)
 
     hooks_cfg = {
         "tool.execute.after": {
             "command": f"{natalie_bin} sync"
         }
     }
-    (vault / ".opencode" / "hooks.json").write_text(
-        json.dumps(hooks_cfg, indent=2), encoding="utf-8"
-    )
+    # .opencode/hooks.json — merge
+    _merge_json(vault / ".opencode" / "hooks.json", hooks_cfg)
 
     typer.echo(f"Vault initialized at: {vault}")
     typer.echo(f"Next step: run 'natalie sync --full' to build the initial search index.")
