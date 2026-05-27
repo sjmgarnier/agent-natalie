@@ -20,6 +20,21 @@ uv pip install --python "$VENV_DIR" agent-natalie
 
 NATALIE="$VENV_DIR/bin/natalie"
 
+# ── Update detection ──────────────────────────────────────────────────────────
+if [[ -d "$VENV_DIR" ]]; then
+    echo "Existing Natalie install found at $VENV_DIR."
+    read -rp "Upgrade agent-natalie? [Y/n] " _UPGRADE
+    _UPGRADE="${_UPGRADE:-Y}"
+    if [[ "$_UPGRADE" =~ ^[Yy]$ ]]; then
+        echo "Upgrading agent-natalie..."
+        uv pip install --python "$VENV_DIR" --upgrade agent-natalie
+        echo ""
+        echo "Done. Run 'natalie sync --full' from your vault directory to rebuild the search index."
+        exit 0
+    fi
+    echo "Proceeding with full re-install..."
+fi
+
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
 read -rp "Vault path (default: $HOME/Natalie): " VAULT_PATH

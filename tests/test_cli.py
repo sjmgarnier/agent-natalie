@@ -92,3 +92,20 @@ def test_init_writes_embedding_provider_to_config(tmp_path):
     assert result.exit_code == 0
     config_text = (tmp_path / "Natalie" / "config.toml").read_text()
     assert 'embedding_provider = "openai"' in config_text
+
+
+def test_init_does_not_overwrite_existing_claude_md(tmp_path):
+    """natalie init must not overwrite CLAUDE.md if it already exists."""
+    existing = tmp_path / "CLAUDE.md"
+    existing.write_text("# My custom instructions\n")
+    runner.invoke(app, ["init", str(tmp_path)])
+    assert existing.read_text() == "# My custom instructions\n"
+
+
+def test_init_force_overwrites_claude_md(tmp_path):
+    """natalie init --force must regenerate CLAUDE.md."""
+    existing = tmp_path / "CLAUDE.md"
+    existing.write_text("# My custom instructions\n")
+    runner.invoke(app, ["init", str(tmp_path), "--force"])
+    content = existing.read_text()
+    assert "agent-natalie:persona:start" in content

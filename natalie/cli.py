@@ -153,6 +153,7 @@ def init(
         "--embedding-provider",
         help="Embedding provider: fastembed, openai, or anthropic.",
     ),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing CLAUDE.md/AGENTS.md."),
 ) -> None:
     """Scaffold a vault and write host configuration files."""
     vault = Path(vault_path).expanduser().resolve()
@@ -183,10 +184,12 @@ def init(
 
     from .config import load_config as _load_config
     cfg = _load_config(vault)
-    claude_content = render_instructions(cfg, vault, target="claude")
-    agents_content = render_instructions(cfg, vault, target="agents")
-    (vault / "CLAUDE.md").write_text(claude_content, encoding="utf-8")
-    (vault / "AGENTS.md").write_text(agents_content, encoding="utf-8")
+    claude_md = vault / "CLAUDE.md"
+    if not claude_md.exists() or force:
+        claude_md.write_text(render_instructions(cfg, vault, target="claude"), encoding="utf-8")
+    agents_md = vault / "AGENTS.md"
+    if not agents_md.exists() or force:
+        agents_md.write_text(render_instructions(cfg, vault, target="agents"), encoding="utf-8")
 
     venv = Path(venv_path).expanduser().resolve()
     server_bin = str(venv / "bin" / "natalie-server")
