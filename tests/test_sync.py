@@ -81,3 +81,32 @@ def test_sync_instructions_preserves_persona_block(vault):
 def test_sync_instructions_no_op_when_claude_md_missing(vault):
     result = sync_instructions(vault)
     assert result["synced"] is False
+
+
+def test_sync_vault_removes_deleted_notes_incrementally(vault, db, config, monkeypatch):
+    """Deleted notes must be removed on incremental sync, not only --full."""
+    import natalie.features.memory as mem_mod
+
+    class FakeModel:
+        def embed(self, texts):
+            import numpy as np
+            return [np.ones(4, dtype=np.float32) for _ in texts]
+
+    monkeypatch.setattr(mem_mod, "_embedding_model", FakeModel())
+
+    from natalie.features.sync import sync_vault
+
+    note = vault / "will-be-deleted.md"
+    note.write_text("hello")
+    sync_vault(db, vault, config, full=False)
+
+    row = db.execute("SELECT id FROM notes WHERE path = 'will-be-deleted.md'").fetchone()
+    assert row is not None
+
+    # Delete the file
+    note.unlink()
+
+    result = sync_vault(db, vault, config, full=False)  # incremental
+    assert result["removed"] >= 1
+    row = db.execute("SELECT id FROM notes WHERE path = 'will-be-deleted.md'").fetchone()
+    assert row is None

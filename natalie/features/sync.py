@@ -28,18 +28,18 @@ def sync_vault(
         index_note(db, vault, p)
         indexed += 1
 
+    # Always reconcile deletions (not just on --full)
+    indexed_paths = {p.relative_to(vault).as_posix() for p in md_files}
+    stored_paths = {
+        r["path"]
+        for r in db.execute(
+            "SELECT path FROM notes WHERE machine_mac IS NULL"
+        ).fetchall()
+    }
     removed = 0
-    if full:
-        indexed_paths = {p.relative_to(vault).as_posix() for p in md_files}
-        stored_paths = {
-            r["path"]
-            for r in db.execute(
-                "SELECT path FROM notes WHERE machine_mac IS NULL"
-            ).fetchall()
-        }
-        for stale in stored_paths - indexed_paths:
-            remove_note(db, stale)
-            removed += 1
+    for stale in stored_paths - indexed_paths:
+        remove_note(db, stale)
+        removed += 1
 
     embedded = embed_notes(db, model_name=model_name)
     return {"indexed": indexed, "removed": removed, "embedded": embedded}

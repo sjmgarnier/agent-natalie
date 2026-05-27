@@ -198,6 +198,41 @@ def test_memory_store_writes_to_disk(vault, db, monkeypatch):
     assert stored_path.read_text() == "hello world"
 
 
+def test_index_note_invalidates_stale_embedding(vault, db, monkeypatch):
+    """Re-indexing an edited note must clear its old embedding."""
+    import natalie.features.memory as mem_mod
+    import numpy as np
+
+    fake_vec = np.ones(4, dtype=np.float32)
+
+    class FakeModel:
+        def embed(self, texts):
+            return [fake_vec for _ in texts]
+
+    monkeypatch.setattr(mem_mod, "_embedding_model", FakeModel())
+
+    note = vault / "changing.md"
+    note.write_text("---\ntitle: Test\n---\noriginal content\n")
+    mem_mod.index_note(db, vault, note)
+    mem_mod.embed_notes(db)
+
+    # Verify embedding exists
+    row = db.execute("SELECT id FROM notes WHERE path = 'changing.md'").fetchone()
+    assert db.execute("SELECT COUNT(*) FROM embeddings WHERE note_id = ?", (row["id"],)).fetchone()[0] == 1
+
+    # Edit the note (change mtime by writing new content)
+    import time as time_mod
+    time_mod.sleep(0.01)
+    note.write_text("---\ntitle: Test\n---\ncompletely new content\n")
+    # Touch to ensure mtime changes
+    note.touch()
+
+    mem_mod.index_note(db, vault, note)
+
+    # Embedding must be gone — embed_notes will re-embed on next sync
+    assert db.execute("SELECT COUNT(*) FROM embeddings WHERE note_id = ?", (row["id"],)).fetchone()[0] == 0
+
+
 def test_memory_store_unique_paths_no_collision(vault, db, monkeypatch):
     """Two stores with the same title must produce distinct files."""
     import natalie.server as srv

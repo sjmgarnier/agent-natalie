@@ -35,6 +35,13 @@ def index_note(
     tags = json.dumps(tags_raw if isinstance(tags_raw, list) else [tags_raw], default=str)
     body = post.content.strip()
 
+    # Invalidate stale embedding when note content is being updated
+    if existing:
+        db.execute(
+            "DELETE FROM embeddings WHERE note_id = (SELECT id FROM notes WHERE path = ?)",
+            (rel,),
+        )
+
     db.execute(
         """
         INSERT INTO notes (path, title, tags, frontmatter, body, last_modified, collection, machine_mac)
