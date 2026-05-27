@@ -1,0 +1,80 @@
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+@dataclass
+class PersonaConfig:
+    name: str = "natalie"
+
+
+@dataclass
+class MemoryConfig:
+    embedding_provider: str = "fastembed"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+
+
+@dataclass
+class SkillsConfig:
+    preferred: list[str] = field(default_factory=list)
+    denied: list[str] = field(default_factory=list)
+
+
+@dataclass
+class McpsConfig:
+    preferred: list[str] = field(default_factory=list)
+    denied: list[str] = field(default_factory=list)
+
+
+@dataclass
+class DocumentsConfig:
+    directory: str = "Natalie/Documents"
+
+
+@dataclass
+class ContactsConfig:
+    directory: str = "Natalie/Contacts"
+
+
+@dataclass
+class SyncConfig:
+    tag: str = "natalie"
+    subdirectory: str = "Natalie"
+
+
+@dataclass
+class NatalieConfig:
+    vault: Path | None = None
+    persona: PersonaConfig = field(default_factory=PersonaConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
+    mcps: McpsConfig = field(default_factory=McpsConfig)
+    documents: DocumentsConfig = field(default_factory=DocumentsConfig)
+    contacts: ContactsConfig = field(default_factory=ContactsConfig)
+    sync: SyncConfig = field(default_factory=SyncConfig)
+
+
+def load_config(vault: Path) -> NatalieConfig:
+    cfg = NatalieConfig(vault=vault)
+    config_path = vault / "Natalie" / "config.toml"
+    if not config_path.exists():
+        return cfg
+    with open(config_path, "rb") as f:
+        data = tomllib.load(f)
+    if "persona" in data:
+        cfg.persona = PersonaConfig(**data["persona"])
+    if "memory" in data:
+        cfg.memory = MemoryConfig(**data["memory"])
+    if "skills" in data:
+        cfg.skills = SkillsConfig(**data["skills"])
+    if "mcps" in data:
+        cfg.mcps = McpsConfig(**data["mcps"])
+    if "features" in data:
+        feats = data["features"]
+        if "documents" in feats:
+            cfg.documents = DocumentsConfig(**feats["documents"])
+        if "contacts" in feats:
+            cfg.contacts = ContactsConfig(**feats["contacts"])
+        if "sync" in feats:
+            cfg.sync = SyncConfig(**feats["sync"])
+    return cfg
