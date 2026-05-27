@@ -89,17 +89,26 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
         db, query, limit=limit * 2, collection=collection,
         model_name=config.memory.embedding_model,
     )
-    merged: dict[str, dict] = {}
-    for r in kw:
-        r["score"] = abs(r.get("score", 0))
-        r["source"] = "keyword"
-        merged[r["path"]] = r
-    for r in se:
+
+    # Reciprocal Rank Fusion: score = sum(1 / (k + rank)) across streams
+    # k=60 is the standard default — dampens the impact of top ranks slightly
+    K = 60
+    rrf: dict[str, dict] = {}
+
+    for rank, r in enumerate(kw, start=1):
         path = r["path"]
-        if path not in merged or r["score"] > merged[path]["score"]:
-            r["source"] = "semantic"
-            merged[path] = r
-    results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+        rrf.setdefault(path, {"path": path, "title": r.get("title"), "score": 0.0, "excerpt": r.get("excerpt", ""), "source": "keyword"})
+        rrf[path]["score"] += 1.0 / (K + rank)
+
+    for rank, r in enumerate(se, start=1):
+        path = r["path"]
+        if path not in rrf:
+            rrf[path] = {"path": path, "title": r.get("title"), "score": 0.0, "excerpt": r.get("excerpt", ""), "source": "semantic"}
+        else:
+            rrf[path]["source"] = "hybrid"
+        rrf[path]["score"] += 1.0 / (K + rank)
+
+    results = sorted(rrf.values(), key=lambda x: x["score"], reverse=True)
     return results[:limit]
 
 

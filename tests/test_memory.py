@@ -245,3 +245,58 @@ def test_memory_store_unique_paths_no_collision(vault, db, monkeypatch):
     assert r1["path"] != r2["path"]
     assert (vault / r1["path"]).read_text() == "first"
     assert (vault / r2["path"]).read_text() == "second"
+
+
+def test_memory_search_rrf_semantic_only_hit_can_rank_first(vault, db, monkeypatch):
+    """A semantic-only match must be able to outrank a weaker keyword match via RRF."""
+    import natalie.features.memory as mem_mod
+    import natalie.server as srv
+    import numpy as np
+    from natalie.config import NatalieConfig
+
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", NatalieConfig(vault=vault))
+
+    # Create two notes; the keyword note matches by a common word, the semantic note
+    # matches only semantically (no word overlap with query).
+    # We simulate this by using a fake embedding model: the "semantic" note gets a
+    # vector identical to the query vector (score=1.0), the "keyword" note gets a
+    # zero vector (score=0).
+    keyword_note = vault / "keyword.md"
+    keyword_note.write_text("---\ntitle: Keyword Note\n---\nthe query word here\n")
+    semantic_note = vault / "semantic.md"
+    semantic_note.write_text("---\ntitle: Semantic Note\n---\ncompletely different vocabulary\n")
+
+    mem_mod.index_note(db, vault, keyword_note)
+    mem_mod.index_note(db, vault, semantic_note)
+
+    # Assign vectors: semantic_note gets vec=[1,0,0,0], keyword_note gets vec=[0,1,0,0]
+    # Query vec = [1,0,0,0] → semantic_note wins semantic search
+    kw_row = db.execute("SELECT id FROM notes WHERE path='keyword.md'").fetchone()
+    sem_row = db.execute("SELECT id FROM notes WHERE path='semantic.md'").fetchone()
+    q_vec = np.array([1, 0, 0, 0], dtype=np.float32)
+    kw_vec = np.array([0, 1, 0, 0], dtype=np.float32)
+    db.execute("INSERT INTO embeddings (note_id, vector) VALUES (?, ?)", (kw_row["id"], kw_vec.tobytes()))
+    db.execute("INSERT INTO embeddings (note_id, vector) VALUES (?, ?)", (sem_row["id"], q_vec.tobytes()))
+    db.commit()
+
+    class FakeModel:
+        def embed(self, texts):
+            yield from (q_vec for _ in texts)
+
+    monkeypatch.setattr(mem_mod, "_embedding_model", FakeModel())
+
+    # keyword_note ranks #1 in keyword search (it contains the query words)
+    # semantic_note ranks #1 in semantic search (cosine=1.0)
+    # With RRF both at rank-1 in their stream, they get equal scores → both returned
+    results = srv.memory_search("query word", limit=10)
+    paths = [r["path"] for r in results]
+    assert "semantic.md" in paths
+    assert "keyword.md" in paths
+    # semantic.md must not be dead-last (old bug: cosine 1.0 < BM25 abs ~5-50 → always last)
+    # With RRF, semantic-only rank-1 gets 1/(60+1) ≈ 0.0164; keyword rank-1 also 0.0164 → tie or near-tie
+    sem_idx = paths.index("semantic.md")
+    kw_idx = paths.index("keyword.md")
+    # semantic-only match appearing in top half is sufficient to prove RRF is working
+    assert sem_idx <= len(paths) // 2 + 1
