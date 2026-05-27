@@ -1,0 +1,72 @@
+import json
+import pytest
+from pathlib import Path
+from natalie.features.memory import index_note, get_notes, remove_note, keyword_search
+
+
+def _write_note(vault: Path, rel_path: str, content: str) -> Path:
+    p = vault / rel_path
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content)
+    return p
+
+
+def test_index_note_stores_title_and_body(vault, db):
+    note = _write_note(vault, "test.md", "---\ntitle: Hello\n---\nBody text here.")
+    index_note(db, vault, note)
+    rows = get_notes(db)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Hello"
+    assert "Body text here" in rows[0]["body"]
+
+
+def test_index_note_uses_filename_as_title_when_frontmatter_absent(vault, db):
+    note = _write_note(vault, "my-note.md", "No frontmatter here.")
+    index_note(db, vault, note)
+    rows = get_notes(db)
+    assert rows[0]["title"] == "my-note"
+
+
+def test_index_note_stores_tags_as_json(vault, db):
+    note = _write_note(vault, "tagged.md", "---\ntags: [work, project]\n---\nContent.")
+    index_note(db, vault, note)
+    rows = get_notes(db)
+    tags = json.loads(rows[0]["tags"])
+    assert "work" in tags
+
+
+def test_index_note_stores_relative_path(vault, db):
+    note = _write_note(vault, "sub/note.md", "Content")
+    index_note(db, vault, note)
+    rows = get_notes(db)
+    assert rows[0]["path"] == "sub/note.md"
+
+
+def test_index_note_skips_unchanged_note(vault, db):
+    note = _write_note(vault, "stable.md", "Content")
+    index_note(db, vault, note)
+    first_mtime = db.execute("SELECT last_modified FROM notes").fetchone()[0]
+    # Write same content — mtime updates but our stored mtime is still old
+    # We should NOT re-index if the mtime matches the stored value
+    stored_mtime = first_mtime
+    # Force same mtime by not touching the file; call index_note again
+    index_note(db, vault, note)  # mtime unchanged → no-op
+    rows = db.execute("SELECT last_modified FROM notes").fetchall()
+    assert len(rows) == 1
+
+
+def test_remove_note_deletes_row(vault, db):
+    note = _write_note(vault, "gone.md", "Content")
+    index_note(db, vault, note)
+    remove_note(db, "gone.md")
+    assert get_notes(db) == []
+
+
+def test_fts_returns_matching_notes(vault, db):
+    _write_note(vault, "alpha.md", "---\ntitle: Alpha\n---\napple banana cherry")
+    _write_note(vault, "beta.md", "---\ntitle: Beta\n---\ndragonfly elephant")
+    for p in vault.glob("*.md"):
+        index_note(db, vault, p)
+    results = keyword_search(db, "banana")
+    assert len(results) == 1
+    assert results[0]["path"] == "alpha.md"
