@@ -11,6 +11,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 from .features import memory as mem
+from .features import tasks as tasks_mod
 from .config import NatalieConfig, load_config
 from .db import init_db
 from .vault import require_vault
@@ -164,6 +165,30 @@ def convention_delete_tool(convention_id: int) -> dict:
     """Remove a convention by ID."""
     mem.convention_delete(_get_db(), convention_id)
     return {"deleted": True, "id": convention_id}
+
+
+@mcp.tool()
+def task_list(done: bool = False) -> list[dict]:
+    """List tasks across the vault. Set done=True to include completed tasks."""
+    vault = _get_vault()
+    all_tasks = tasks_mod.discover_tasks(vault)
+    return [t for t in all_tasks if done or not t["done"]]
+
+
+@mcp.tool()
+def task_capture(rel_path: str, task_text: str) -> dict:
+    """Add a new open task to a vault note."""
+    vault = _get_vault()
+    tasks_mod.capture_task(vault, rel_path, task_text)
+    return {"captured": True, "path": rel_path, "task": task_text}
+
+
+@mcp.tool()
+def task_complete(rel_path: str, task_text: str) -> dict:
+    """Mark a specific task as done."""
+    vault = _get_vault()
+    found = tasks_mod.complete_task(vault, rel_path, task_text)
+    return {"completed": found, "path": rel_path, "task": task_text}
 
 
 def main() -> None:
