@@ -77,7 +77,7 @@ _DEFAULT_CONFIG_TOML = """\
 name = "{persona}"
 
 [memory]
-embedding_provider = "fastembed"
+embedding_provider = "{embedding_provider}"
 embedding_model    = "BAAI/bge-small-en-v1.5"
 
 [skills]
@@ -148,6 +148,11 @@ def init(
         "--venv-path",
         help="Path to the Python virtual environment.",
     ),
+    embedding_provider: str = typer.Option(
+        "fastembed",
+        "--embedding-provider",
+        help="Embedding provider: fastembed, openai, or anthropic.",
+    ),
 ) -> None:
     """Scaffold a vault and write host configuration files."""
     vault = Path(vault_path).expanduser().resolve()
@@ -164,7 +169,10 @@ def init(
 
     config_path = vault / "Natalie" / "config.toml"
     if not config_path.exists():
-        config_path.write_text(_DEFAULT_CONFIG_TOML.format(persona=persona), encoding="utf-8")
+        config_path.write_text(
+            _DEFAULT_CONFIG_TOML.format(persona=persona, embedding_provider=embedding_provider),
+            encoding="utf-8",
+        )
 
     dashboard = vault / "Dashboard.md"
     if not dashboard.exists():

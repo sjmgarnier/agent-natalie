@@ -85,3 +85,10 @@ def test_init_preserves_existing_opencode_mcp(tmp_path):
     result = json.loads(oc_path.read_text())
     assert "other-tool" in result["mcp"]
     assert "natalie" in result["mcp"]
+
+
+def test_init_writes_embedding_provider_to_config(tmp_path):
+    result = runner.invoke(app, ["init", str(tmp_path), "--embedding-provider", "openai"])
+    assert result.exit_code == 0
+    config_text = (tmp_path / "Natalie" / "config.toml").read_text()
+    assert 'embedding_provider = "openai"' in config_text

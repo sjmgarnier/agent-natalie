@@ -8,7 +8,8 @@ VENV_DIR="$HOME/.natalie/.venv"
 if ! command -v uv &>/dev/null; then
     echo "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.cargo/bin:$PATH"
+    [ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 fi
 
 # ── Install agent-natalie ─────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-fastembed}"
 # ── Initialize vault ─────────────────────────────────────────────────────────
 echo ""
 echo "Initializing vault at $VAULT_PATH..."
-"$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR"
+"$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR" --embedding-provider "$EMBEDDING_PROVIDER"
 
 # ── Build initial index ───────────────────────────────────────────────────────
 echo ""
