@@ -7,7 +7,7 @@ from ..utils import safe_join
 
 
 def _doc_dir(vault: Path, config: NatalieConfig) -> Path:
-    return vault / config.documents.directory
+    return safe_join(vault, config.documents.directory)
 
 
 def file_document(vault: Path, config: NatalieConfig, filename: str, content: str) -> dict:

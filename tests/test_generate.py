@@ -50,3 +50,15 @@ def test_render_instructions_includes_denied_mcps(vault):
     cfg = NatalieConfig(vault=vault, mcps=McpsConfig(denied=["bad-mcp"]))
     output = render_instructions(cfg, vault, target="claude")
     assert "bad-mcp" in output
+
+
+def test_load_persona_rejects_path_traversal_vault(vault):
+    """Persona name with path traversal must raise ValueError, not read arbitrary files."""
+    with pytest.raises(ValueError):
+        load_persona("../../etc/passwd", vault=vault)
+
+
+def test_load_persona_rejects_path_traversal_preset():
+    """Path traversal must be rejected even when no vault is provided."""
+    with pytest.raises(ValueError):
+        load_persona("../../etc/passwd")

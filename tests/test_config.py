@@ -1,18 +1,14 @@
-import pytest
-from pathlib import Path
 from natalie.config import load_config, NatalieConfig
 
 
 def test_load_config_returns_defaults_when_no_file(vault):
     cfg = load_config(vault)
     assert cfg.persona.name == "natalie"
-    assert cfg.memory.embedding_provider == "fastembed"
     assert cfg.memory.embedding_model == "BAAI/bge-small-en-v1.5"
     assert cfg.skills.preferred == []
     assert cfg.skills.denied == []
     assert cfg.documents.directory == "Natalie/Documents"
     assert cfg.contacts.directory == "Natalie/Contacts"
-    assert cfg.sync.tag == "natalie"
 
 
 def test_load_config_reads_persona_name(vault):

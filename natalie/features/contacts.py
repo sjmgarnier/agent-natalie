@@ -9,7 +9,7 @@ from ..utils import safe_join
 
 
 def _contacts_dir(vault: Path, config: NatalieConfig) -> Path:
-    return vault / config.contacts.directory
+    return safe_join(vault, config.contacts.directory)
 
 
 def _contact_path(vault: Path, config: NatalieConfig, slug: str) -> Path:

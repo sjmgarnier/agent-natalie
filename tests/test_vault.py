@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from natalie.vault import find_vault, require_vault
 
 

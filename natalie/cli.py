@@ -1,11 +1,13 @@
 import json
 import sys
+import tomllib
+import tomli_w
 import typer
 from pathlib import Path
 
 from .vault import require_vault
 from .config import load_config
-from .db import get_db, init_db
+from .db import init_db
 from .generate import render_instructions
 
 app = typer.Typer(
@@ -57,13 +59,11 @@ def config(
         cfg.persona.name = persona
         config_path = vault / "Natalie" / "config.toml"
         try:
-            import tomllib
             with open(config_path, "rb") as f:
                 data = dict(tomllib.load(f))
         except FileNotFoundError:
             data = {}
         data.setdefault("persona", {})["name"] = persona
-        import tomli_w
         config_path.write_bytes(tomli_w.dumps(data).encode())
     claude_content = render_instructions(cfg, vault, target="claude")
     agents_content = render_instructions(cfg, vault, target="agents")
@@ -77,8 +77,7 @@ _DEFAULT_CONFIG_TOML = """\
 name = "{persona}"
 
 [memory]
-embedding_provider = "{embedding_provider}"
-embedding_model    = "BAAI/bge-small-en-v1.5"
+embedding_model = "BAAI/bge-small-en-v1.5"
 
 [skills]
 preferred = []
@@ -93,10 +92,6 @@ directory = "Natalie/Documents"
 
 [features.contacts]
 directory = "Natalie/Contacts"
-
-[features.sync]
-tag          = "natalie"
-subdirectory = "Natalie"
 """
 
 
@@ -136,11 +131,6 @@ def init(
         "--venv-path",
         help="Path to the Python virtual environment.",
     ),
-    embedding_provider: str = typer.Option(
-        "fastembed",
-        "--embedding-provider",
-        help="Embedding provider: fastembed, openai, or anthropic.",
-    ),
     force: bool = typer.Option(False, "--force", help="Overwrite existing CLAUDE.md/AGENTS.md."),
 ) -> None:
     """Scaffold a vault and write host configuration files."""
@@ -159,7 +149,7 @@ def init(
     config_path = vault / "Natalie" / "config.toml"
     if not config_path.exists():
         config_path.write_text(
-            _DEFAULT_CONFIG_TOML.format(persona=persona, embedding_provider=embedding_provider),
+            _DEFAULT_CONFIG_TOML.format(persona=persona),
             encoding="utf-8",
         )
 
@@ -180,11 +170,9 @@ def init(
         {"enabledCssSnippets": snippet_names},
     )
 
-    from .db import init_db
     init_db(vault)
 
-    from .config import load_config as _load_config
-    cfg = _load_config(vault)
+    cfg = load_config(vault)
     claude_md = vault / "CLAUDE.md"
     if not claude_md.exists() or force:
         claude_md.write_text(render_instructions(cfg, vault, target="claude"), encoding="utf-8")

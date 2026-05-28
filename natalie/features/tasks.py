@@ -5,8 +5,7 @@ from pathlib import Path
 
 from ..utils import safe_join
 
-_OPEN_RE = re.compile(r"^(\s*- \[ \] )(.+)$", re.MULTILINE)
-_ANY_RE = re.compile(r"^(\s*- \[[ x]\] )(.+)$", re.MULTILINE)
+_ANY_RE = re.compile(r"^(\s*- \[[ xX]\] )(.+)$", re.MULTILINE)
 
 
 def discover_tasks(vault: Path) -> list[dict]:
@@ -21,7 +20,7 @@ def discover_tasks(vault: Path) -> list[dict]:
             marker, task_text = m.group(1), m.group(2).strip()
             tasks.append({
                 "text": task_text,
-                "done": "[x]" in marker,
+                "done": "[x]" in marker.lower(),
                 "path": rel,
                 "line": text[: m.start()].count("\n") + 1,
             })

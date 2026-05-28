@@ -29,8 +29,8 @@ def sync_vault(
 
     indexed = 0
     for p in md_files:
-        index_note(db, vault, p)
-        indexed += 1
+        if index_note(db, vault, p):
+            indexed += 1
 
     # Always reconcile deletions (not just on --full)
     indexed_paths = {p.relative_to(vault).as_posix() for p in md_files}
@@ -47,23 +47,3 @@ def sync_vault(
 
     embedded = embed_notes(db, model_name=model_name)
     return {"indexed": indexed, "removed": removed, "embedded": embedded}
-
-
-def sync_instructions(vault: Path) -> dict:
-    """Mirror CLAUDE.md → AGENTS.md.
-
-    CLAUDE.md is canonical. AGENTS.md is a copy with an OpenCode-specific header
-    comment; content is otherwise identical in v1.
-    """
-    claude_md = vault / "CLAUDE.md"
-    if not claude_md.exists():
-        return {"synced": False, "reason": "CLAUDE.md not found"}
-
-    content = claude_md.read_text(encoding="utf-8")
-    lines = content.split("\n")
-    # Replace only the first heading line to add "(OpenCode)" marker
-    if lines and lines[0].startswith("# "):
-        lines[0] = lines[0].rstrip() + " (OpenCode)"
-    agents_content = "\n".join(lines)
-    (vault / "AGENTS.md").write_text(agents_content, encoding="utf-8")
-    return {"synced": True}

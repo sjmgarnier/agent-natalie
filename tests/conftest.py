@@ -4,6 +4,8 @@ from natalie.db import init_db, get_db
 from natalie.config import load_config
 
 
+
+
 @pytest.fixture
 def vault(tmp_path):
     """Minimal vault for testing: .natalie/ directory + initialized DB."""

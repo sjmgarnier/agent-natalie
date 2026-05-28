@@ -156,7 +156,8 @@ def memory_store(
             title = excluded.title,
             body = excluded.body,
             last_modified = excluded.last_modified,
-            collection = excluded.collection
+            collection = excluded.collection,
+            machine_mac = excluded.machine_mac
         """,
         (rel_path, title or "Untitled", content, time.time(), collection, mac),
     )
@@ -177,7 +178,7 @@ def note_write(path: str, content: str) -> dict:
     vault = _get_vault()
     db = _get_db()
     _obsidian_write(vault, path, content)
-    mem.index_note(db, vault, vault / path)
+    mem.index_note(db, vault, (vault / path).resolve())
     return {"written": True, "path": path}
 
 

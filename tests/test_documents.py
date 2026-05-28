@@ -34,3 +34,11 @@ def test_list_documents_returns_filenames(vault, config):
     docs = list_documents(vault, config)
     assert "alpha.md" in docs
     assert "beta.md" in docs
+
+
+def test_file_document_rejects_traversal_in_directory(vault, config):
+    """A config.documents.directory that escapes the vault must raise ValueError."""
+    from natalie.config import NatalieConfig, DocumentsConfig
+    bad_config = NatalieConfig(vault=vault, documents=DocumentsConfig(directory="../../etc"))
+    with pytest.raises(ValueError):
+        file_document(vault, bad_config, "passwd", "root:x:0:0")

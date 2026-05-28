@@ -46,3 +46,28 @@ def test_contact_path_raises_on_traversal(vault, config):
     from natalie.features.contacts import get_contact
     with pytest.raises(ValueError):
         get_contact(vault, config, "../../etc/passwd")
+
+
+def test_note_write_indexes_canonical_path(vault, db, monkeypatch):
+    """note_write must store the resolved path so it matches what sync_vault would store.
+
+    A path with '..' segments must be resolved before being passed to index_note,
+    otherwise the DB row has a non-canonical key that sync_vault's deletion pass
+    won't recognise and will never clean up.
+    """
+    import natalie.server as srv
+    from natalie.config import NatalieConfig
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", NatalieConfig(vault=vault))
+
+    # Create subdirectory so the path with '..' is valid inside the vault
+    (vault / "notes").mkdir(exist_ok=True)
+    path_with_dotdot = "notes/../notes/canon.md"
+
+    srv.note_write(path=path_with_dotdot, content="hello")
+
+    # The DB must store the canonical relative path, not the raw one
+    rows = db.execute("SELECT path FROM notes WHERE body = 'hello'").fetchall()
+    assert len(rows) == 1
+    assert ".." not in rows[0]["path"]

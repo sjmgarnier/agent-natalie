@@ -16,7 +16,6 @@ class PersonaConfig:
 
 @dataclass
 class MemoryConfig:
-    embedding_provider: str = "fastembed"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
 
 
@@ -43,12 +42,6 @@ class ContactsConfig:
 
 
 @dataclass
-class SyncConfig:
-    tag: str = "natalie"
-    subdirectory: str = "Natalie"
-
-
-@dataclass
 class NatalieConfig:
     vault: Path | None = None
     persona: PersonaConfig = field(default_factory=PersonaConfig)
@@ -57,7 +50,6 @@ class NatalieConfig:
     mcps: McpsConfig = field(default_factory=McpsConfig)
     documents: DocumentsConfig = field(default_factory=DocumentsConfig)
     contacts: ContactsConfig = field(default_factory=ContactsConfig)
-    sync: SyncConfig = field(default_factory=SyncConfig)
 
 
 def load_config(vault: Path) -> NatalieConfig:
@@ -81,6 +73,4 @@ def load_config(vault: Path) -> NatalieConfig:
             cfg.documents = DocumentsConfig(**_filter(DocumentsConfig, feats["documents"]))
         if "contacts" in feats:
             cfg.contacts = ContactsConfig(**_filter(ContactsConfig, feats["contacts"]))
-        if "sync" in feats:
-            cfg.sync = SyncConfig(**_filter(SyncConfig, feats["sync"]))
     return cfg

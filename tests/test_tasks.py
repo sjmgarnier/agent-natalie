@@ -1,17 +1,9 @@
-import pytest
-from pathlib import Path
 from natalie.features.tasks import discover_tasks, capture_task, complete_task
-
-
-def _write(vault: Path, rel: str, content: str) -> Path:
-    p = vault / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content, encoding="utf-8")
-    return p
+from tests.helpers import write_note
 
 
 def test_discover_tasks_finds_open_checkboxes(vault):
-    _write(vault, "work.md", "# Work\n\n- [ ] Write report\n- [x] Done thing\n- [ ] Review PR\n")
+    write_note(vault, "work.md", "# Work\n\n- [ ] Write report\n- [x] Done thing\n- [ ] Review PR\n")
     tasks = discover_tasks(vault)
     open_tasks = [t for t in tasks if not t["done"]]
     assert len(open_tasks) == 2
@@ -21,20 +13,20 @@ def test_discover_tasks_finds_open_checkboxes(vault):
 
 
 def test_discover_tasks_marks_done_items(vault):
-    _write(vault, "tasks.md", "- [x] Completed task\n")
+    write_note(vault, "tasks.md", "- [x] Completed task\n")
     tasks = discover_tasks(vault)
     assert len(tasks) == 1
     assert tasks[0]["done"] is True
 
 
 def test_discover_tasks_returns_source_path(vault):
-    _write(vault, "project.md", "- [ ] My task\n")
+    write_note(vault, "project.md", "- [ ] My task\n")
     tasks = discover_tasks(vault)
     assert tasks[0]["path"] == "project.md"
 
 
 def test_capture_task_appends_to_file(vault):
-    note = _write(vault, "inbox.md", "# Inbox\n\n- [ ] Existing task\n")
+    note = write_note(vault, "inbox.md", "# Inbox\n\n- [ ] Existing task\n")
     capture_task(vault, "inbox.md", "New task")
     content = note.read_text()
     assert "- [ ] New task" in content
@@ -47,7 +39,7 @@ def test_capture_task_creates_file_if_missing(vault):
 
 
 def test_complete_task_marks_checkbox_done(vault):
-    note = _write(vault, "todo.md", "- [ ] Finish the thing\n")
+    note = write_note(vault, "todo.md", "- [ ] Finish the thing\n")
     result = complete_task(vault, "todo.md", "Finish the thing")
     assert result is True
     content = note.read_text()
@@ -55,9 +47,21 @@ def test_complete_task_marks_checkbox_done(vault):
 
 
 def test_complete_task_returns_false_if_not_found(vault):
-    _write(vault, "empty.md", "- [ ] Something else\n")
+    write_note(vault, "empty.md", "- [ ] Something else\n")
     result = complete_task(vault, "empty.md", "Nonexistent task")
     assert result is False
+
+
+def test_discover_tasks_recognises_uppercase_X(vault):
+    """Obsidian allows [X] (uppercase) for completed tasks; both forms must be found."""
+    write_note(vault, "mixed.md", "- [X] Done uppercase\n- [x] Done lowercase\n- [ ] Still open\n")
+    tasks = discover_tasks(vault)
+    assert len(tasks) == 3
+    done = [t for t in tasks if t["done"]]
+    assert len(done) == 2
+    texts = {t["text"] for t in done}
+    assert "Done uppercase" in texts
+    assert "Done lowercase" in texts
 
 
 def test_complete_task_handles_trailing_whitespace(vault):

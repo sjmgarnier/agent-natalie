@@ -45,3 +45,13 @@ def test_update_contact_handles_content_key(vault, config):
     data = get_contact(vault, config, "alice")
     assert data["content"] == "bio text"
     assert data["name"] == "Alice"
+
+
+def test_update_contact_rejects_traversal_in_directory(vault, config):
+    """A config.contacts.directory that escapes the vault must raise ValueError."""
+    import pytest
+    from natalie.features.contacts import update_contact
+    from natalie.config import NatalieConfig, ContactsConfig
+    bad_config = NatalieConfig(vault=vault, contacts=ContactsConfig(directory="../../etc"))
+    with pytest.raises(ValueError):
+        update_contact(vault, bad_config, "passwd", {"name": "Evil"})

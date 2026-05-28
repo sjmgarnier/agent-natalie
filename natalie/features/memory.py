@@ -17,8 +17,8 @@ def index_note(
     note_path: Path,
     collection: str = "global",
     machine_mac: str | None = None,
-) -> None:
-    """Index or update a single vault note. No-op if mtime unchanged."""
+) -> bool:
+    """Index or update a single vault note. Returns False (no-op) if mtime unchanged."""
     rel = note_path.relative_to(vault).as_posix()
     mtime = note_path.stat().st_mtime
 
@@ -26,7 +26,7 @@ def index_note(
         "SELECT last_modified FROM notes WHERE path = ?", (rel,)
     ).fetchone()
     if existing and existing["last_modified"] == mtime:
-        return
+        return False
 
     post = fm.loads(note_path.read_text(encoding="utf-8"))
     meta = post.metadata
@@ -58,6 +58,7 @@ def index_note(
         (rel, title, tags, json.dumps(meta, default=str), body, mtime, collection, machine_mac),
     )
     db.commit()
+    return True
 
 
 def remove_note(db: sqlite3.Connection, rel_path: str) -> None:

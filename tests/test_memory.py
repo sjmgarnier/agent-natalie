@@ -6,6 +6,7 @@ from unittest.mock import patch
 from natalie.features.memory import index_note, get_notes, remove_note, keyword_search
 from natalie.features.memory import embed_notes, semantic_search
 from natalie.features.memory import convention_add, convention_list, convention_delete
+from tests.helpers import write_note
 
 
 class _FakeEmbedding:
@@ -29,15 +30,8 @@ def reset_embedding_model():
     mem._embedding_models.clear()
 
 
-def _write_note(vault: Path, rel_path: str, content: str) -> Path:
-    p = vault / rel_path
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content)
-    return p
-
-
 def test_index_note_stores_title_and_body(vault, db):
-    note = _write_note(vault, "test.md", "---\ntitle: Hello\n---\nBody text here.")
+    note = write_note(vault, "test.md", "---\ntitle: Hello\n---\nBody text here.")
     index_note(db, vault, note)
     rows = get_notes(db)
     assert len(rows) == 1
@@ -46,14 +40,14 @@ def test_index_note_stores_title_and_body(vault, db):
 
 
 def test_index_note_uses_filename_as_title_when_frontmatter_absent(vault, db):
-    note = _write_note(vault, "my-note.md", "No frontmatter here.")
+    note = write_note(vault, "my-note.md", "No frontmatter here.")
     index_note(db, vault, note)
     rows = get_notes(db)
     assert rows[0]["title"] == "my-note"
 
 
 def test_index_note_stores_tags_as_json(vault, db):
-    note = _write_note(vault, "tagged.md", "---\ntags: [work, project]\n---\nContent.")
+    note = write_note(vault, "tagged.md", "---\ntags: [work, project]\n---\nContent.")
     index_note(db, vault, note)
     rows = get_notes(db)
     tags = json.loads(rows[0]["tags"])
@@ -61,14 +55,14 @@ def test_index_note_stores_tags_as_json(vault, db):
 
 
 def test_index_note_stores_relative_path(vault, db):
-    note = _write_note(vault, "sub/note.md", "Content")
+    note = write_note(vault, "sub/note.md", "Content")
     index_note(db, vault, note)
     rows = get_notes(db)
     assert rows[0]["path"] == "sub/note.md"
 
 
 def test_index_note_skips_unchanged_note(vault, db):
-    note = _write_note(vault, "stable.md", "Content")
+    note = write_note(vault, "stable.md", "Content")
     index_note(db, vault, note)
     first_mtime = db.execute("SELECT last_modified FROM notes").fetchone()[0]
     # Write same content — mtime updates but our stored mtime is still old
@@ -81,15 +75,15 @@ def test_index_note_skips_unchanged_note(vault, db):
 
 
 def test_remove_note_deletes_row(vault, db):
-    note = _write_note(vault, "gone.md", "Content")
+    note = write_note(vault, "gone.md", "Content")
     index_note(db, vault, note)
     remove_note(db, "gone.md")
     assert get_notes(db) == []
 
 
 def test_fts_returns_matching_notes(vault, db):
-    _write_note(vault, "alpha.md", "---\ntitle: Alpha\n---\napple banana cherry")
-    _write_note(vault, "beta.md", "---\ntitle: Beta\n---\ndragonfly elephant")
+    write_note(vault, "alpha.md", "---\ntitle: Alpha\n---\napple banana cherry")
+    write_note(vault, "beta.md", "---\ntitle: Beta\n---\ndragonfly elephant")
     for p in vault.glob("*.md"):
         index_note(db, vault, p)
     results = keyword_search(db, "banana")
@@ -98,7 +92,7 @@ def test_fts_returns_matching_notes(vault, db):
 
 
 def test_embed_notes_stores_vectors(vault, db):
-    note = _write_note(vault, "embed-me.md", "---\ntitle: Embed\n---\nContent to embed.")
+    note = write_note(vault, "embed-me.md", "---\ntitle: Embed\n---\nContent to embed.")
     index_note(db, vault, note)
     with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
         embed_notes(db, model_name="BAAI/bge-small-en-v1.5")
@@ -109,7 +103,7 @@ def test_embed_notes_stores_vectors(vault, db):
 
 
 def test_embed_notes_skips_already_embedded(vault, db):
-    note = _write_note(vault, "skip-me.md", "Content")
+    note = write_note(vault, "skip-me.md", "Content")
     index_note(db, vault, note)
     embed_call_count = []
     class CountingFake(_FakeEmbedding):
@@ -124,8 +118,8 @@ def test_embed_notes_skips_already_embedded(vault, db):
 
 
 def test_semantic_search_returns_results(vault, db):
-    _write_note(vault, "sem-a.md", "---\ntitle: Apple\n---\nfruit salad")
-    _write_note(vault, "sem-b.md", "---\ntitle: Bicycle\n---\ntransport wheels")
+    write_note(vault, "sem-a.md", "---\ntitle: Apple\n---\nfruit salad")
+    write_note(vault, "sem-b.md", "---\ntitle: Bicycle\n---\ntransport wheels")
     for p in vault.glob("sem-*.md"):
         index_note(db, vault, p)
     with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
@@ -245,6 +239,40 @@ def test_memory_store_unique_paths_no_collision(vault, db, monkeypatch):
     assert r1["path"] != r2["path"]
     assert (vault / r1["path"]).read_text() == "first"
     assert (vault / r2["path"]).read_text() == "second"
+
+
+def test_memory_store_overwrites_vault_note_sets_machine_mac(vault, db, monkeypatch):
+    """memory_store on a path already indexed as a vault note must update machine_mac.
+
+    Before the fix, ON CONFLICT omitted machine_mac from the UPDATE clause,
+    so the row kept machine_mac IS NULL and sync_vault's deletion pass would
+    silently delete the memory entry as a stale vault note.
+    """
+    import time
+    import natalie.server as srv
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    from natalie.config import NatalieConfig
+    monkeypatch.setattr(srv, "_config", NatalieConfig(vault=vault))
+
+    # Pre-insert a vault note (machine_mac IS NULL)
+    note_path = "notes/existing.md"
+    (vault / "notes").mkdir(parents=True, exist_ok=True)
+    (vault / note_path).write_text("original content")
+    db.execute(
+        "INSERT INTO notes (path, title, body, last_modified, machine_mac) VALUES (?, ?, ?, ?, NULL)",
+        (note_path, "Existing Note", "original content", time.time()),
+    )
+    db.commit()
+    assert db.execute("SELECT machine_mac FROM notes WHERE path = ?", (note_path,)).fetchone()["machine_mac"] is None
+
+    # Store via memory_store using the same explicit path
+    result = srv.memory_store(content="new content", title="Updated", path=note_path)
+    assert result["stored"] is True
+
+    # machine_mac must now be set — sync_vault must not delete this row
+    row = db.execute("SELECT machine_mac FROM notes WHERE path = ?", (note_path,)).fetchone()
+    assert row["machine_mac"] is not None
 
 
 def test_memory_search_rrf_semantic_only_hit_can_rank_first(vault, db, monkeypatch):
