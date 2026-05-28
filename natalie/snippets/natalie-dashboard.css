@@ -1,0 +1,97 @@
+/* Natalie Dashboard — overrides & tweaks */
+
+/* No inline title */
+.natalie-dashboard .inline-title {
+  display: none;
+}
+
+/* Banner callout — full-width hero header */
+/* The background image should ideally be configurable */
+/* For security reasons, local image files can't be used here */
+.callout[data-callout="banner"] {
+  border-radius: 10px;
+  height: 15rem;
+  background-color: #123456;
+  background-image: url("https://c.pxhere.com/photos/e1/98/beverage_black_coffee_coffee_cup_cup_of_coffee_desk_drink_flower_pot-913663.jpg!d"); /* This should be configurable by the user */
+  background-size: cover;
+}
+
+.callout[data-callout="banner"] .callout-title {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.callout[data-callout="banner"] .callout-title .callout-icon {
+  display: none;
+}
+
+.callout[data-callout="banner"] .callout-content {
+  font-size: 1.25rem;
+  color: #ffffff;
+}
+
+/* Custom callout: Task list */
+.callout[data-callout="task-list"] {
+  --callout-color: 34, 197, 94;
+  --callout-icon: lucide-check-square-2;
+}
+
+/* Custom callout: Links / quick nav */
+.callout[data-callout="links"] {
+  --callout-color: 14, 165, 233;
+  --callout-icon: lucide-link;
+}
+
+/* Custom callout: Briefing */
+.callout[data-callout="briefing"] {
+  --callout-color: 147, 47, 97;
+  --callout-icon: lucide-rss;
+}
+
+/* Hide the embed link title bar (filename) — reading + editing mode */
+.markdown-preview-view.natalie-dashboard .markdown-embed-title,
+.markdown-source-view.natalie-dashboard .markdown-embed-title {
+  display: none;
+}
+
+/* Remove embed border, padding, and margin — reading + editing mode */
+.markdown-preview-view.natalie-dashboard .markdown-embed,
+.markdown-source-view.natalie-dashboard .markdown-embed {
+  border-inline-start: none !important;
+  padding-inline-start: 0 !important;
+}
+
+.markdown-preview-view.natalie-dashboard .markdown-preview-sizer .markdown-preview-section {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.markdown-preview-view.natalie-dashboard .markdown-embed-content .markdown-preview-view,
+.markdown-source-view.natalie-dashboard .markdown-embed-content .markdown-preview-view {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Tighten inner card padding slightly — reading + editing mode */
+.callout[data-callout="multi-column"] .callout {
+  padding-top: 0.5em;
+}
+
+/* Stretch horizontal dividers to match callout width — reading mode */
+.natalie-dashboard .el-hr,
+.natalie-dashboard .el-hr hr {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+  box-sizing: border-box;
+}
+
+/* Stretch horizontal dividers — editing / Live Preview mode */
+.natalie-dashboard.markdown-source-view .cm-line:has(hr),
+.natalie-dashboard.markdown-source-view hr {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+  box-sizing: border-box;
+}

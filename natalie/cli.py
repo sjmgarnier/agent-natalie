@@ -168,6 +168,13 @@ def init(
         _dashboard_src = Path(__file__).parent / "templates" / "Dashboard.md"
         dashboard.write_text(_dashboard_src.read_text(encoding="utf-8"), encoding="utf-8")
 
+    (vault / ".obsidian" / "snippets").mkdir(parents=True, exist_ok=True)
+    _snippets_src = Path(__file__).parent / "snippets"
+    for css in _snippets_src.glob("*.css"):
+        dest = vault / ".obsidian" / "snippets" / css.name
+        if not dest.exists():
+            dest.write_bytes(css.read_bytes())
+
     from .db import init_db
     init_db(vault)
 

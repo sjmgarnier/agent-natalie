@@ -122,3 +122,20 @@ def test_init_skips_existing_dashboard(tmp_path):
     existing.write_text("# My custom dashboard\n")
     runner.invoke(app, ["init", str(tmp_path)])
     assert existing.read_text() == "# My custom dashboard\n"
+
+
+def test_init_copies_css_snippets(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)])
+    snippets_dir = tmp_path / ".obsidian" / "snippets"
+    assert (snippets_dir / "natalie-dashboard.css").exists()
+    assert (snippets_dir / "MCL Multi Column.css").exists()
+    assert (snippets_dir / "MCL Wide Views.css").exists()
+
+
+def test_init_skips_existing_css(tmp_path):
+    snippets_dir = tmp_path / ".obsidian" / "snippets"
+    snippets_dir.mkdir(parents=True)
+    sentinel = "/* sentinel */"
+    (snippets_dir / "natalie-dashboard.css").write_text(sentinel)
+    runner.invoke(app, ["init", str(tmp_path)])
+    assert (snippets_dir / "natalie-dashboard.css").read_text() == sentinel
