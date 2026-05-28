@@ -64,7 +64,7 @@ fi
 # ── Initialize vault ─────────────────────────────────────────────────────────
 echo ""
 echo "Initializing vault at $VAULT_PATH..."
-"$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR" --embedding-provider "$EMBEDDING_PROVIDER"
+"$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR"
 
 # ── Build initial index ───────────────────────────────────────────────────────
 echo ""
@@ -73,4 +73,22 @@ cd "$VAULT_PATH"
 "$NATALIE" sync --full
 
 echo ""
-echo "Done. Open '$VAULT_PATH' as your Obsidian vault and start Claude Code from that directory."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Done! Here's what to do next:"
+echo ""
+echo "  1. Open Obsidian and add '$VAULT_PATH' as a vault."
+echo "     The Dashboard layout and CSS snippets are pre-configured."
+echo "     If the multi-column layout doesn't appear, go to:"
+echo "       Settings → Appearance → CSS snippets"
+echo "     and make sure natalie-dashboard, MCL Multi Column, and MCL Wide Views"
+echo "     are toggled on. Then reload Obsidian (Cmd+R)."
+echo ""
+echo "  2. Start Claude Code from inside the vault:"
+echo "       cd '$VAULT_PATH' && claude"
+echo "     Claude Code reads .mcp.json and connects to natalie-server automatically."
+echo "     The natalie tools (memory_search, note_write, task_list, …) will appear"
+echo "     in the tool list."
+echo ""
+echo "  3. Run 'natalie sync' from the vault directory any time you add new notes."
+echo "     (It runs automatically as a Claude Code hook after every tool use.)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
