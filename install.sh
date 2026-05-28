@@ -11,12 +11,6 @@ if ! command -v uv &>/dev/null; then
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 fi
 
-# ── Install agent-natalie ─────────────────────────────────────────────────────
-echo "Creating Python environment at $VENV_DIR..."
-mkdir -p "$HOME/.natalie"
-uv venv "$VENV_DIR"
-uv pip install --python "$VENV_DIR" agent-natalie
-
 NATALIE="$VENV_DIR/bin/natalie"
 
 # ── Update detection ──────────────────────────────────────────────────────────
@@ -34,6 +28,12 @@ if [[ -d "$VENV_DIR" ]]; then
     echo "Proceeding with full re-install..."
 fi
 
+# ── Install agent-natalie ─────────────────────────────────────────────────────
+echo "Creating Python environment at $VENV_DIR..."
+mkdir -p "$HOME/.natalie"
+uv venv "$VENV_DIR"
+uv pip install --python "$VENV_DIR" agent-natalie
+
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
 read -rp "Vault path (default: $HOME/Natalie): " VAULT_PATH
@@ -45,12 +45,6 @@ echo ""
 echo "Available personas: natalie, donna, moneypenny, smithers, april, finch, gary, pam"
 read -rp "Persona (default: natalie): " PERSONA
 PERSONA="${PERSONA:-natalie}"
-
-# ── Prompt for embedding provider ────────────────────────────────────────────
-echo ""
-echo "Embedding providers: fastembed (default, no API key), openai, anthropic"
-read -rp "Embedding provider (default: fastembed): " EMBEDDING_PROVIDER
-EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-fastembed}"
 
 # ── Confirm vault modification ────────────────────────────────────────────────
 echo ""

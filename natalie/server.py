@@ -4,6 +4,7 @@ import json
 import re
 import socket
 import sqlite3
+import sys
 import time
 import urllib.parse
 import uuid
@@ -264,7 +265,10 @@ def contact_list() -> list[str]:
 
 def main() -> None:
     global _vault, _config, _db
-    _vault = require_vault()
+    try:
+        _vault = require_vault()
+    except RuntimeError as exc:
+        sys.exit(str(exc))
     _config = load_config(_vault)
     _db = init_db(_vault)
     mcp.run()
