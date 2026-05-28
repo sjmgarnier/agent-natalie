@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="https://github.com/yourusername/agent-natalie"
 VENV_DIR="$HOME/.natalie/.venv"
 
 # ── uv ────────────────────────────────────────────────────────────────────────
@@ -52,6 +51,21 @@ echo ""
 echo "Embedding providers: fastembed (default, no API key), openai, anthropic"
 read -rp "Embedding provider (default: fastembed): " EMBEDDING_PROVIDER
 EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-fastembed}"
+
+# ── Confirm vault modification ────────────────────────────────────────────────
+echo ""
+echo "natalie will create or modify the following in: $VAULT_PATH"
+echo "  Dashboard.md, CLAUDE.md, AGENTS.md   (skipped if already present)"
+echo "  .obsidian/snippets/                  (3 CSS files, skipped if already present)"
+echo "  .obsidian/appearance.json            (enables CSS snippets)"
+echo "  .mcp.json, .claude/settings.json, opencode.json, .opencode/hooks.json"
+echo ""
+read -rp "Proceed? [Y/n] " _PROCEED
+_PROCEED="${_PROCEED:-Y}"
+if [[ ! "$_PROCEED" =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 1
+fi
 
 # ── Initialize vault ─────────────────────────────────────────────────────────
 echo ""
