@@ -16,6 +16,5 @@ build/
 # uv lockfile — not committed for library packages
 uv.lock
 
-# internal planning / spec artifacts
-docs/specs/
-docs/superpowers/
+# internal planning / spec artifacts — keep local only
+docs/
