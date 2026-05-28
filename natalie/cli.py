@@ -158,6 +158,15 @@ def init(
         _dashboard_src = Path(__file__).parent / "templates" / "Dashboard.md"
         dashboard.write_text(_dashboard_src.read_text(encoding="utf-8"), encoding="utf-8")
 
+    for _stub_name, _stub_content in [
+        ("Today", "*Add your daily plan here.*\n"),
+        ("Briefing", "*Add your briefing notes here.*\n"),
+        ("Links", "*Add your links here.*\n"),
+    ]:
+        _stub = vault / "Natalie" / f"{_stub_name}.md"
+        if not _stub.exists():
+            _stub.write_text(_stub_content, encoding="utf-8")
+
     (vault / ".obsidian" / "snippets").mkdir(parents=True, exist_ok=True)
     _snippets_src = Path(__file__).parent / "snippets"
     for css in _snippets_src.glob("*.css"):
