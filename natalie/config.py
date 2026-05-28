@@ -1,6 +1,12 @@
+import dataclasses
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def _filter(cls: type, data: dict) -> dict:
+    known = {f.name for f in dataclasses.fields(cls)}
+    return {k: v for k, v in data.items() if k in known}
 
 
 @dataclass
@@ -62,19 +68,19 @@ def load_config(vault: Path) -> NatalieConfig:
     with open(config_path, "rb") as f:
         data = tomllib.load(f)
     if "persona" in data:
-        cfg.persona = PersonaConfig(**data["persona"])
+        cfg.persona = PersonaConfig(**_filter(PersonaConfig, data["persona"]))
     if "memory" in data:
-        cfg.memory = MemoryConfig(**data["memory"])
+        cfg.memory = MemoryConfig(**_filter(MemoryConfig, data["memory"]))
     if "skills" in data:
-        cfg.skills = SkillsConfig(**data["skills"])
+        cfg.skills = SkillsConfig(**_filter(SkillsConfig, data["skills"]))
     if "mcps" in data:
-        cfg.mcps = McpsConfig(**data["mcps"])
+        cfg.mcps = McpsConfig(**_filter(McpsConfig, data["mcps"]))
     if "features" in data:
         feats = data["features"]
         if "documents" in feats:
-            cfg.documents = DocumentsConfig(**feats["documents"])
+            cfg.documents = DocumentsConfig(**_filter(DocumentsConfig, feats["documents"]))
         if "contacts" in feats:
-            cfg.contacts = ContactsConfig(**feats["contacts"])
+            cfg.contacts = ContactsConfig(**_filter(ContactsConfig, feats["contacts"]))
         if "sync" in feats:
-            cfg.sync = SyncConfig(**feats["sync"])
+            cfg.sync = SyncConfig(**_filter(SyncConfig, feats["sync"]))
     return cfg

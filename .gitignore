@@ -6,3 +6,15 @@ build/
 .venv/
 .pytest_cache/
 *.db
+
+# macOS
+.DS_Store
+
+# local knowledge graph (machine-specific)
+.mnem/
+
+# uv lockfile — not committed for library packages
+uv.lock
+
+# internal planning / spec artifacts
+docs/specs/

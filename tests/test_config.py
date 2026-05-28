@@ -46,3 +46,10 @@ def test_load_config_reads_features(vault):
 def test_load_config_vault_field_is_set(vault):
     cfg = load_config(vault)
     assert cfg.vault == vault
+
+
+def test_load_config_ignores_unknown_keys(vault):
+    config_path = vault / "Natalie" / "config.toml"
+    config_path.write_text('[persona]\nname = "donna"\nunknown_key = "ignored"\n')
+    cfg = load_config(vault)
+    assert cfg.persona.name == "donna"  # must not raise TypeError

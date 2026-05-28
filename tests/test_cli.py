@@ -53,25 +53,24 @@ def test_init_creates_vault_structure(tmp_path):
     assert (tmp_path / "opencode.json").exists()
 
 
-def test_init_writes_mcp_entry_to_settings_json(tmp_path):
+def test_init_writes_mcp_entry_to_mcp_json(tmp_path):
     runner.invoke(app, ["init", str(tmp_path)])
     import json
-    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
-    assert "natalie" in settings.get("mcpServers", {})
+    mcp_json = json.loads((tmp_path / ".mcp.json").read_text())
+    assert "natalie" in mcp_json.get("mcpServers", {})
 
 
 def test_init_preserves_existing_mcp_entries(tmp_path):
-    """natalie init must not destroy pre-existing MCP servers in settings.json."""
+    """natalie init must not destroy pre-existing MCP servers in .mcp.json."""
     import json
-    settings_path = tmp_path / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    settings_path.write_text(json.dumps({
+    mcp_path = tmp_path / ".mcp.json"
+    mcp_path.write_text(json.dumps({
         "mcpServers": {
             "github": {"command": "github-mcp", "args": [], "type": "stdio"}
         }
     }))
     runner.invoke(app, ["init", str(tmp_path)])
-    result = json.loads(settings_path.read_text())
+    result = json.loads(mcp_path.read_text())
     assert "github" in result["mcpServers"]
     assert "natalie" in result["mcpServers"]
 

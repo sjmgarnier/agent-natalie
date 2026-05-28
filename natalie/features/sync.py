@@ -18,6 +18,10 @@ def sync_vault(
 
     Returns: {indexed: int, removed: int, embedded: int}
     """
+    if full:
+        db.execute("DELETE FROM notes WHERE machine_mac IS NULL")
+        db.commit()
+
     md_files = {
         p for p in vault.rglob("*.md")
         if not any(part.startswith(".") for part in p.relative_to(vault).parts)

@@ -83,6 +83,27 @@ def test_sync_instructions_no_op_when_claude_md_missing(vault):
     assert result["synced"] is False
 
 
+def test_sync_vault_full_wipes_and_reindexes(vault, db, config):
+    """--full must delete all vault rows first so DB corruption is repaired."""
+    _write(vault, "stable.md", "---\ntitle: Stable\n---\nReal content.")
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault, config)
+
+    # Corrupt the DB body directly — mtime is still current, so incremental skips it
+    db.execute("UPDATE notes SET body = 'corrupted' WHERE path = 'stable.md'")
+    db.commit()
+
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault, config, full=False)  # incremental — mtime matches, skips
+    row = db.execute("SELECT body FROM notes WHERE path = 'stable.md'").fetchone()
+    assert row["body"] == "corrupted", "incremental must not touch unchanged mtime"
+
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault, config, full=True)  # full — wipe and re-index
+    row = db.execute("SELECT body FROM notes WHERE path = 'stable.md'").fetchone()
+    assert row["body"] == "Real content.", "full must re-index from disk"
+
+
 def test_sync_vault_removes_deleted_notes_incrementally(vault, db, config, monkeypatch):
     """Deleted notes must be removed on incremental sync, not only --full."""
     import natalie.features.memory as mem_mod
@@ -92,7 +113,7 @@ def test_sync_vault_removes_deleted_notes_incrementally(vault, db, config, monke
             import numpy as np
             return [np.ones(4, dtype=np.float32) for _ in texts]
 
-    monkeypatch.setattr(mem_mod, "_embedding_model", FakeModel())
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
 
     from natalie.features.sync import sync_vault
 

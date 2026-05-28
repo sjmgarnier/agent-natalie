@@ -5,6 +5,7 @@ import re
 import socket
 import sqlite3
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 
@@ -45,8 +46,9 @@ def _get_db() -> sqlite3.Connection:
 
 def _obsidian_read(vault: Path, rel_path: str) -> str | None:
     safe_join(vault, rel_path)  # raises ValueError if path escapes vault
+    encoded = urllib.parse.quote(rel_path, safe="/")
     try:
-        r = httpx.get(f"http://127.0.0.1:27123/vault/{rel_path}", timeout=2.0)
+        r = httpx.get(f"http://127.0.0.1:27123/vault/{encoded}", timeout=2.0)
         if r.status_code == 200:
             return r.text
     except httpx.RequestError:
@@ -57,9 +59,10 @@ def _obsidian_read(vault: Path, rel_path: str) -> str | None:
 
 def _obsidian_write(vault: Path, rel_path: str, content: str) -> None:
     safe_join(vault, rel_path)  # raises ValueError if path escapes vault
+    encoded = urllib.parse.quote(rel_path, safe="/")
     try:
         r = httpx.put(
-            f"http://127.0.0.1:27123/vault/{rel_path}",
+            f"http://127.0.0.1:27123/vault/{encoded}",
             content=content.encode(),
             timeout=2.0,
         )

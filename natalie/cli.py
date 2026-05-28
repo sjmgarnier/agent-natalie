@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .vault import require_vault
 from .config import load_config
-from .db import get_db
+from .db import get_db, init_db
 from .generate import render_instructions
 
 app = typer.Typer(
@@ -40,7 +40,7 @@ def sync(
     """Sync the vault index (incremental by default)."""
     vault = require_vault()
     config = load_config(vault)
-    db = get_db(vault)
+    db = init_db(vault)
     from .features.sync import sync_vault
     result = sync_vault(db, vault, config, full=full, model_name=config.memory.embedding_model)
     typer.echo(f"Synced: {result['indexed']} indexed, {result['removed']} removed, {result['embedded']} embedded.")

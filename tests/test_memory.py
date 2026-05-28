@@ -24,9 +24,9 @@ class _FakeEmbedding:
 def reset_embedding_model():
     """Reset the module-level model cache between tests."""
     import natalie.features.memory as mem
-    mem._embedding_model = None
+    mem._embedding_models.clear()
     yield
-    mem._embedding_model = None
+    mem._embedding_models.clear()
 
 
 def _write_note(vault: Path, rel_path: str, content: str) -> Path:
@@ -209,7 +209,7 @@ def test_index_note_invalidates_stale_embedding(vault, db, monkeypatch):
         def embed(self, texts):
             return [fake_vec for _ in texts]
 
-    monkeypatch.setattr(mem_mod, "_embedding_model", FakeModel())
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
 
     note = vault / "changing.md"
     note.write_text("---\ntitle: Test\n---\noriginal content\n")
@@ -285,7 +285,7 @@ def test_memory_search_rrf_semantic_only_hit_can_rank_first(vault, db, monkeypat
         def embed(self, texts):
             yield from (q_vec for _ in texts)
 
-    monkeypatch.setattr(mem_mod, "_embedding_model", FakeModel())
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
 
     # keyword_note ranks #1 in keyword search (it contains the query words)
     # semantic_note ranks #1 in semantic search (cosine=1.0)

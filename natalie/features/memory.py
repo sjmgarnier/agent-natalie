@@ -114,14 +114,13 @@ def keyword_search(
 
 # ── Embeddings ────────────────────────────────────────────────────────────────
 
-_embedding_model: TextEmbedding | None = None
+_embedding_models: dict[str, TextEmbedding] = {}
 
 
 def _get_embedding_model(model_name: str = "BAAI/bge-small-en-v1.5") -> TextEmbedding:
-    global _embedding_model
-    if _embedding_model is None:
-        _embedding_model = TextEmbedding(model_name=model_name)
-    return _embedding_model
+    if model_name not in _embedding_models:
+        _embedding_models[model_name] = TextEmbedding(model_name=model_name)
+    return _embedding_models[model_name]
 
 
 def embed_notes(
