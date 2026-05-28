@@ -108,3 +108,17 @@ def test_init_force_overwrites_claude_md(tmp_path):
     runner.invoke(app, ["init", str(tmp_path), "--force"])
     content = existing.read_text()
     assert "agent-natalie:persona:start" in content
+
+
+def test_init_writes_rich_dashboard(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)])
+    content = (tmp_path / "Dashboard.md").read_text()
+    assert "multi-column" in content
+    assert "banner" in content
+
+
+def test_init_skips_existing_dashboard(tmp_path):
+    existing = tmp_path / "Dashboard.md"
+    existing.write_text("# My custom dashboard\n")
+    runner.invoke(app, ["init", str(tmp_path)])
+    assert existing.read_text() == "# My custom dashboard\n"

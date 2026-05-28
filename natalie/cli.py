@@ -99,18 +99,6 @@ tag          = "natalie"
 subdirectory = "Natalie"
 """
 
-_DASHBOARD_MD = """\
-# Natalie Dashboard
-
-Welcome to your Natalie vault.
-
-## Today
-
-## Open Tasks
-
-## Recent Documents
-"""
-
 
 def _deep_merge(base: dict, update: dict) -> None:
     """Recursively merge update into base in-place."""
@@ -177,7 +165,8 @@ def init(
 
     dashboard = vault / "Dashboard.md"
     if not dashboard.exists():
-        dashboard.write_text(_DASHBOARD_MD, encoding="utf-8")
+        _dashboard_src = Path(__file__).parent / "templates" / "Dashboard.md"
+        dashboard.write_text(_dashboard_src.read_text(encoding="utf-8"), encoding="utf-8")
 
     from .db import init_db
     init_db(vault)
