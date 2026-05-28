@@ -174,6 +174,11 @@ def init(
         dest = vault / ".obsidian" / "snippets" / css.name
         if not dest.exists():
             dest.write_bytes(css.read_bytes())
+    snippet_names = [p.stem for p in _snippets_src.glob("*.css")]
+    _merge_json(
+        vault / ".obsidian" / "appearance.json",
+        {"enabledCssSnippets": snippet_names},
+    )
 
     from .db import init_db
     init_db(vault)

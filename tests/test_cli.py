@@ -139,3 +139,31 @@ def test_init_skips_existing_css(tmp_path):
     (snippets_dir / "natalie-dashboard.css").write_text(sentinel)
     runner.invoke(app, ["init", str(tmp_path)])
     assert (snippets_dir / "natalie-dashboard.css").read_text() == sentinel
+
+
+def test_init_enables_css_snippets(tmp_path):
+    import json
+    runner.invoke(app, ["init", str(tmp_path)])
+    appearance = json.loads((tmp_path / ".obsidian" / "appearance.json").read_text())
+    snippets = appearance.get("enabledCssSnippets", [])
+    assert "natalie-dashboard" in snippets
+    assert "MCL Multi Column" in snippets
+    assert "MCL Wide Views" in snippets
+
+
+def test_init_merges_existing_appearance_json(tmp_path):
+    import json
+    appearance_path = tmp_path / ".obsidian" / "appearance.json"
+    appearance_path.parent.mkdir(parents=True, exist_ok=True)
+    appearance_path.write_text(json.dumps({
+        "theme": "Minimal",
+        "enabledCssSnippets": ["my-existing-snippet"]
+    }))
+    runner.invoke(app, ["init", str(tmp_path)])
+    result = json.loads(appearance_path.read_text())
+    assert result.get("theme") == "Minimal"
+    snippets = result.get("enabledCssSnippets", [])
+    assert "my-existing-snippet" in snippets
+    assert "natalie-dashboard" in snippets
+    assert "MCL Multi Column" in snippets
+    assert "MCL Wide Views" in snippets
