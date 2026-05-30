@@ -123,3 +123,13 @@ def test_discover_tasks_works_with_symlinked_vault(vault):
         os.symlink(vault, link)
         tasks = discover_tasks(link)
     assert any(t["text"] == "A task" for t in tasks)
+
+
+def test_capture_task_rejects_empty_task_text(vault):
+    with pytest.raises(ValueError, match="task_text"):
+        capture_task(vault, "Note.md", "")
+
+
+def test_capture_task_rejects_whitespace_task_text(vault):
+    with pytest.raises(ValueError, match="task_text"):
+        capture_task(vault, "Note.md", "   ")

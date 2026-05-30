@@ -32,6 +32,8 @@ def discover_tasks(vault: Path) -> list[dict[str, Any]]:
 
 def capture_task(vault: Path, rel_path: str, task_text: str) -> dict[str, Any]:
     """Append a new open task to a note (creates the file if missing)."""
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
     full = safe_join(vault, rel_path)
     if full.exists():
         existing = full.read_text(encoding="utf-8")
