@@ -19,6 +19,7 @@ VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
 
 if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
     for f in \
+        "$VAULT_PATH/.mcp.json" \
         "$VAULT_PATH/.claude/settings.json" \
         "$VAULT_PATH/opencode.json" \
         "$VAULT_PATH/.opencode/hooks.json"

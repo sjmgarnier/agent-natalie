@@ -23,13 +23,14 @@ is working from that directory.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/agent-natalie/main/install.sh | bash
+git clone <repo-url> agent-natalie
+bash agent-natalie/install.sh
 ```
 
 The script:
 1. Installs `uv` if missing
 2. Creates `~/.natalie/.venv/` with an isolated Python environment
-3. Prompts for your vault path, persona, and embedding provider
+3. Prompts for your vault path and persona
 4. Scaffolds the vault and generates `CLAUDE.md` / `AGENTS.md`
 5. Builds the initial search index
 
@@ -64,9 +65,9 @@ natalie init <vault-path>      # Scaffold a new vault (called by install.sh)
 | `contact_get` | Get a contact card |
 | `contact_update` | Create or update a contact card |
 | `contact_list` | List contacts |
-| `convention_list_tool` | List conventions for a domain |
-| `convention_add_tool` | Add a convention |
-| `convention_delete_tool` | Delete a convention |
+| `convention_list` | List conventions for a domain |
+| `convention_add` | Add a convention |
+| `convention_delete` | Delete a convention |
 
 ## Personas
 
@@ -106,8 +107,7 @@ Edit `<vault>/Natalie/config.toml`:
 name = "natalie"
 
 [memory]
-embedding_provider = "fastembed"       # or "openai", "anthropic"
-embedding_model    = "BAAI/bge-small-en-v1.5"
+embedding_model = "BAAI/bge-small-en-v1.5"
 
 [skills]
 preferred = ["superpowers", "r-lib"]   # agent will prefer these
@@ -118,12 +118,12 @@ preferred = ["obsidian", "github"]
 denied    = []
 ```
 
-After editing, run `natalie config` to regenerate `CLAUDE.md` and `AGENTS.md`.
+After editing, run `natalie config --regen` to regenerate `CLAUDE.md` and `AGENTS.md`.
 
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/agent-natalie/main/uninstall.sh | bash
+bash /path/to/agent-natalie/uninstall.sh
 ```
 
 ## Things to verify before shipping

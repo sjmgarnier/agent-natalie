@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$HOME/.natalie/.venv"
 
 # ── uv ────────────────────────────────────────────────────────────────────────
@@ -20,7 +21,7 @@ if [[ -d "$VENV_DIR" ]]; then
     _UPGRADE="${_UPGRADE:-Y}"
     if [[ "$_UPGRADE" =~ ^[Yy]$ ]]; then
         echo "Upgrading agent-natalie..."
-        uv pip install --python "$VENV_DIR" --upgrade agent-natalie
+        uv pip install --python "$VENV_DIR" --upgrade "$SCRIPT_DIR"
         echo ""
         echo "Done. Run 'natalie sync --full' from your vault directory to rebuild the search index."
         exit 0
@@ -32,7 +33,7 @@ fi
 echo "Creating Python environment at $VENV_DIR..."
 mkdir -p "$HOME/.natalie"
 uv venv "$VENV_DIR"
-uv pip install --python "$VENV_DIR" agent-natalie
+uv pip install --python "$VENV_DIR" "$SCRIPT_DIR"
 
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
