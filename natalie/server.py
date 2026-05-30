@@ -196,8 +196,13 @@ def note_write(path: str, content: str) -> dict[str, Any]:
     """Write or overwrite a vault note by relative path."""
     vault = _get_vault()
     db = _get_db()
+    full = safe_join(vault, path)
     _obsidian_write(vault, path, content)
-    mem.index_note(db, vault, (vault / path).resolve())
+    # REST write may succeed without creating a local file; index_note requires stat()
+    if not full.exists():
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(content, encoding="utf-8")
+    mem.index_note(db, vault, full)
     return {"written": True, "path": path}
 
 

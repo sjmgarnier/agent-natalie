@@ -46,6 +46,8 @@ def capture_task(vault: Path, rel_path: str, task_text: str) -> dict[str, Any]:
 
 def complete_task(vault: Path, rel_path: str, task_text: str) -> bool:
     """Mark a specific open task as done. Returns True if found and marked."""
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
     full = safe_join(vault, rel_path)
     if not full.exists():
         return False

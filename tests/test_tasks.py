@@ -1,3 +1,5 @@
+import pytest
+
 from natalie.features.tasks import capture_task, complete_task, discover_tasks
 from tests.helpers import write_note
 
@@ -89,6 +91,24 @@ def test_complete_task_handles_trailing_whitespace(vault):
     result = complete_task(vault, "tasks.md", "Buy groceries")
     assert result is True
     assert "[x]" in note.read_text()
+
+
+def test_complete_task_rejects_empty_task_text(vault):
+    """C2: empty task_text must raise ValueError, not silently mark all open tasks done."""
+    write_note(vault, "tasks.md", "- [ ] Important task\n- [ ] Another task\n")
+    with pytest.raises(ValueError, match="task_text"):
+        complete_task(vault, "tasks.md", "")
+    content = (vault / "tasks.md").read_text()
+    assert content.count("- [ ]") == 2  # nothing was modified
+
+
+def test_complete_task_rejects_whitespace_only_task_text(vault):
+    """C2: whitespace-only task_text is also invalid."""
+    write_note(vault, "tasks.md", "- [ ] Some task\n")
+    with pytest.raises(ValueError, match="task_text"):
+        complete_task(vault, "tasks.md", "   ")
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ]" in content  # nothing was modified
 
 
 def test_discover_tasks_works_with_symlinked_vault(vault):

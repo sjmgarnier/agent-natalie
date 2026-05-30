@@ -174,3 +174,43 @@ def test_obsidian_write_creates_parent_dirs_on_fallback(vault: Path) -> None:
         srv._obsidian_write(vault, "deep/nested/note.md", "hello")
 
     assert (vault / "deep" / "nested" / "note.md").read_text(encoding="utf-8") == "hello"
+
+
+# ---------------------------------------------------------------------------
+# note_write — REST success must not crash when local file absent (C1)
+# ---------------------------------------------------------------------------
+
+
+def test_note_write_succeeds_when_rest_returns_200_and_no_local_file(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C1: note_write must not raise FileNotFoundError when Obsidian REST returns 200."""
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", config)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+
+    with patch("natalie.server.httpx.put", return_value=mock_response):
+        result = srv.note_write("new-note.md", "# New Note\n\nContent here")
+
+    assert result == {"written": True, "path": "new-note.md"}
+
+
+def test_note_write_indexes_note_in_db_when_rest_succeeds(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C1: note_write must index the note in the DB even when REST handles the write."""
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", config)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+
+    with patch("natalie.server.httpx.put", return_value=mock_response):
+        srv.note_write("indexed.md", "# Indexed\n\nShould be in DB")
+
+    row = db.execute("SELECT title FROM notes WHERE path = 'indexed.md'").fetchone()
+    assert row is not None  # note was indexed
