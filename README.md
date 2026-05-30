@@ -198,9 +198,10 @@ directory = "Natalie/Contacts"
 After changing `embedding_model` in `config.toml`, run `natalie sync --full` to rebuild
 the index from scratch.
 
-**Single active session per vault** — `natalie.db` lives inside the vault and syncs via
-iCloud like any other file. Running `natalie-server` on two machines simultaneously against
-the same synced vault risks SQLite WAL corruption. Keep one session active at a time.
+**Single active session per vault** — `natalie.db` lives inside the vault. If you sync
+your vault across machines (iCloud, Dropbox, Syncthing, or similar), running
+`natalie-server` on two machines simultaneously against the same vault risks SQLite WAL
+corruption. Keep one active session at a time.
 
 ---
 
