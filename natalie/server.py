@@ -149,13 +149,13 @@ def memory_store(
     vault = _get_vault()
     mac = str(uuid.getnode())
     if path is not None:
-        rel_path = path
-        safe_join(vault, rel_path)  # raises ValueError if path escapes vault
+        full = safe_join(vault, path)  # raises ValueError if path escapes vault
+        rel_path = full.relative_to(vault.resolve()).as_posix()
     else:
         rel_path = _entry_path(mac, title)
+        full = safe_join(vault, rel_path)
 
     # Write to disk so note_read can serve the content
-    full = vault / rel_path
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_text(content, encoding="utf-8")
 

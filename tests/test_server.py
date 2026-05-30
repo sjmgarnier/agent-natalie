@@ -232,3 +232,25 @@ def test_note_write_indexes_note_in_db_when_rest_succeeds(
 
     row = db.execute("SELECT title FROM notes WHERE path = 'indexed.md'").fetchone()
     assert row is not None  # note was indexed
+
+
+def test_memory_store_rejects_path_traversal(
+    vault: Path, db: object, config: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="escapes"):
+        srv.memory_store(content="x", path="../../../etc/passwd")
+
+
+def test_memory_store_canonicalizes_path_in_db(
+    vault: Path, db: object, config: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", config)
+    result = srv.memory_store(content="hello", path="subdir/../note.md")
+    assert result["path"] == "note.md"
+    row = db.execute("SELECT path FROM notes WHERE path = 'note.md'").fetchone()  # type: ignore[union-attr]
+    assert row is not None
