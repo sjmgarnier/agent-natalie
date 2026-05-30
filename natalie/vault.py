@@ -12,7 +12,5 @@ def find_vault(start: Path | None = None) -> Path | None:
 def require_vault(start: Path | None = None) -> Path:
     vault = find_vault(start)
     if vault is None:
-        raise RuntimeError(
-            "No Natalie vault found. Run 'natalie init <vault-path>' to set one up."
-        )
+        raise RuntimeError("No Natalie vault found. Run 'natalie init <vault-path>' to set one up.")
     return vault

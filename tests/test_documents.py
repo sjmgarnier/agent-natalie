@@ -1,5 +1,6 @@
 import pytest
-from natalie.features.documents import file_document, retrieve_document, list_documents
+
+from natalie.features.documents import file_document, list_documents, retrieve_document
 
 
 def test_file_document_creates_file(vault, config):
@@ -38,7 +39,8 @@ def test_list_documents_returns_filenames(vault, config):
 
 def test_file_document_rejects_traversal_in_directory(vault, config):
     """A config.documents.directory that escapes the vault must raise ValueError."""
-    from natalie.config import NatalieConfig, DocumentsConfig
-    bad_config = NatalieConfig(vault=vault, documents=DocumentsConfig(directory="../../etc"))
+    from natalie.config import DocumentsConfig, NatalieConfig
+
+    bad_config = NatalieConfig(documents=DocumentsConfig(directory="../../etc"))
     with pytest.raises(ValueError):
         file_document(vault, bad_config, "passwd", "root:x:0:0")

@@ -48,12 +48,6 @@ CREATE TABLE IF NOT EXISTS conventions (
     source     TEXT    NOT NULL CHECK(source IN ('explicit', 'observed')),
     created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
-
-CREATE TABLE IF NOT EXISTS machines (
-    mac_address TEXT PRIMARY KEY,
-    hostname    TEXT NOT NULL,
-    last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
-);
 """
 
 

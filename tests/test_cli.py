@@ -1,7 +1,7 @@
 from unittest.mock import patch
-from pathlib import Path
 
 from typer.testing import CliRunner
+
 from natalie.cli import app
 
 runner = CliRunner()
@@ -20,10 +20,13 @@ def test_help():
 
 
 def test_config_persona_writes_claude_md(vault):
-    with patch("natalie.cli.require_vault", return_value=vault), \
-         patch("natalie.cli.load_config") as mock_cfg:
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+    ):
         from natalie.config import NatalieConfig, PersonaConfig
-        mock_cfg.return_value = NatalieConfig(vault=vault, persona=PersonaConfig(name="natalie"))
+
+        mock_cfg.return_value = NatalieConfig(persona=PersonaConfig(name="natalie"))
         result = runner.invoke(app, ["config", "--persona", "natalie"])
     assert result.exit_code == 0
     assert (vault / "CLAUDE.md").exists()
@@ -31,10 +34,13 @@ def test_config_persona_writes_claude_md(vault):
 
 
 def test_config_persona_writes_persona_markers(vault):
-    with patch("natalie.cli.require_vault", return_value=vault), \
-         patch("natalie.cli.load_config") as mock_cfg:
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+    ):
         from natalie.config import NatalieConfig, PersonaConfig
-        mock_cfg.return_value = NatalieConfig(vault=vault, persona=PersonaConfig(name="natalie"))
+
+        mock_cfg.return_value = NatalieConfig(persona=PersonaConfig(name="natalie"))
         runner.invoke(app, ["config", "--persona", "natalie"])
     content = (vault / "CLAUDE.md").read_text()
     assert "<!-- agent-natalie:persona:start -->" in content
@@ -56,6 +62,7 @@ def test_init_creates_vault_structure(tmp_path):
 def test_init_writes_mcp_entry_to_mcp_json(tmp_path):
     runner.invoke(app, ["init", str(tmp_path)])
     import json
+
     mcp_json = json.loads((tmp_path / ".mcp.json").read_text())
     assert "natalie" in mcp_json.get("mcpServers", {})
 
@@ -63,12 +70,11 @@ def test_init_writes_mcp_entry_to_mcp_json(tmp_path):
 def test_init_preserves_existing_mcp_entries(tmp_path):
     """natalie init must not destroy pre-existing MCP servers in .mcp.json."""
     import json
+
     mcp_path = tmp_path / ".mcp.json"
-    mcp_path.write_text(json.dumps({
-        "mcpServers": {
-            "github": {"command": "github-mcp", "args": [], "type": "stdio"}
-        }
-    }))
+    mcp_path.write_text(
+        json.dumps({"mcpServers": {"github": {"command": "github-mcp", "args": [], "type": "stdio"}}})
+    )
     runner.invoke(app, ["init", str(tmp_path)])
     result = json.loads(mcp_path.read_text())
     assert "github" in result["mcpServers"]
@@ -78,13 +84,13 @@ def test_init_preserves_existing_mcp_entries(tmp_path):
 def test_init_preserves_existing_opencode_mcp(tmp_path):
     """natalie init must not destroy pre-existing MCPs in opencode.json."""
     import json
+
     oc_path = tmp_path / "opencode.json"
     oc_path.write_text(json.dumps({"mcp": {"other-tool": {"command": "other", "enabled": True}}}))
     runner.invoke(app, ["init", str(tmp_path)])
     result = json.loads(oc_path.read_text())
     assert "other-tool" in result["mcp"]
     assert "natalie" in result["mcp"]
-
 
 
 def test_init_does_not_overwrite_existing_claude_md(tmp_path):
@@ -137,6 +143,7 @@ def test_init_skips_existing_css(tmp_path):
 
 def test_init_enables_css_snippets(tmp_path):
     import json
+
     runner.invoke(app, ["init", str(tmp_path)])
     appearance = json.loads((tmp_path / ".obsidian" / "appearance.json").read_text())
     snippets = appearance.get("enabledCssSnippets", [])
@@ -145,14 +152,54 @@ def test_init_enables_css_snippets(tmp_path):
     assert "MCL Wide Views" in snippets
 
 
+def test_config_no_args_does_not_regenerate_files(vault):
+    """natalie config with no arguments must not overwrite CLAUDE.md — I1."""
+    existing = vault / "CLAUDE.md"
+    existing.write_text("# sentinel content\n")
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+    ):
+        from natalie.config import NatalieConfig, PersonaConfig
+
+        mock_cfg.return_value = NatalieConfig(persona=PersonaConfig(name="natalie"))
+        runner.invoke(app, ["config"])
+    assert existing.read_text() == "# sentinel content\n"
+
+
+def test_config_regen_flag_regenerates_files(vault):
+    """natalie config --regen must regenerate CLAUDE.md without changing persona — I1."""
+    existing = vault / "CLAUDE.md"
+    existing.write_text("# sentinel content\n")
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+    ):
+        from natalie.config import NatalieConfig, PersonaConfig
+
+        mock_cfg.return_value = NatalieConfig(persona=PersonaConfig(name="natalie"))
+        result = runner.invoke(app, ["config", "--regen"])
+    assert result.exit_code == 0
+    assert existing.read_text() != "# sentinel content\n"
+    assert "agent-natalie:persona:start" in existing.read_text()
+
+
+def test_init_completion_message_mentions_vault_directory(tmp_path):
+    """The sync instruction must tell the user to run from the vault directory — I4."""
+    result = runner.invoke(app, ["init", str(tmp_path)])
+    assert result.exit_code == 0
+    sync_line = next(line for line in result.output.splitlines() if "sync" in line)
+    assert str(tmp_path) in sync_line
+
+
 def test_init_merges_existing_appearance_json(tmp_path):
     import json
+
     appearance_path = tmp_path / ".obsidian" / "appearance.json"
     appearance_path.parent.mkdir(parents=True, exist_ok=True)
-    appearance_path.write_text(json.dumps({
-        "theme": "Minimal",
-        "enabledCssSnippets": ["my-existing-snippet"]
-    }))
+    appearance_path.write_text(
+        json.dumps({"theme": "Minimal", "enabledCssSnippets": ["my-existing-snippet"]})
+    )
     runner.invoke(app, ["init", str(tmp_path)])
     result = json.loads(appearance_path.read_text())
     assert result.get("theme") == "Minimal"

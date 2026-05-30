@@ -43,7 +43,6 @@ class ContactsConfig:
 
 @dataclass
 class NatalieConfig:
-    vault: Path | None = None
     persona: PersonaConfig = field(default_factory=PersonaConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
@@ -53,7 +52,7 @@ class NatalieConfig:
 
 
 def load_config(vault: Path) -> NatalieConfig:
-    cfg = NatalieConfig(vault=vault)
+    cfg = NatalieConfig()
     config_path = vault / "Natalie" / "config.toml"
     if not config_path.exists():
         return cfg

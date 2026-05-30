@@ -1,14 +1,15 @@
 import json
-import sys
 import tomllib
-import tomli_w
-import typer
 from pathlib import Path
 
-from .vault import require_vault
+import tomli_w
+import typer
+
 from .config import load_config
 from .db import init_db
+from .features.memory import DEFAULT_EMBEDDING_MODEL
 from .generate import render_instructions
+from .vault import require_vault
 
 app = typer.Typer(
     name="natalie",
@@ -28,7 +29,11 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def main(
     version: bool = typer.Option(
-        None, "--version", "-V", callback=_version_callback, is_eager=True,
+        None,
+        "--version",
+        "-V",
+        callback=_version_callback,
+        is_eager=True,
         help="Show version and exit.",
     ),
 ) -> None:
@@ -44,13 +49,21 @@ def sync(
     config = load_config(vault)
     db = init_db(vault)
     from .features.sync import sync_vault
-    result = sync_vault(db, vault, config, full=full, model_name=config.memory.embedding_model)
-    typer.echo(f"Synced: {result['indexed']} indexed, {result['removed']} removed, {result['embedded']} embedded.")
+
+    result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
+    typer.echo(
+        f"Synced: {result['indexed']} indexed, {result['removed']} removed, {result['embedded']} embedded."
+    )
 
 
 @app.command()
 def config(
     persona: str | None = typer.Option(None, "--persona", help="Persona name to activate."),
+    regen: bool = typer.Option(
+        False,
+        "--regen",
+        help="Regenerate CLAUDE.md / AGENTS.md without changing persona.",
+    ),
 ) -> None:
     """Update vault configuration and regenerate CLAUDE.md / AGENTS.md."""
     vault = require_vault()
@@ -65,11 +78,14 @@ def config(
             data = {}
         data.setdefault("persona", {})["name"] = persona
         config_path.write_bytes(tomli_w.dumps(data).encode())
-    claude_content = render_instructions(cfg, vault, target="claude")
-    agents_content = render_instructions(cfg, vault, target="agents")
-    (vault / "CLAUDE.md").write_text(claude_content, encoding="utf-8")
-    (vault / "AGENTS.md").write_text(agents_content, encoding="utf-8")
-    typer.echo(f"Generated CLAUDE.md and AGENTS.md with persona: {cfg.persona.name}")
+    if persona or regen:
+        claude_content = render_instructions(cfg, vault, target="claude")
+        agents_content = render_instructions(cfg, vault, target="agents")
+        (vault / "CLAUDE.md").write_text(claude_content, encoding="utf-8")
+        (vault / "AGENTS.md").write_text(agents_content, encoding="utf-8")
+        typer.echo(f"Generated CLAUDE.md and AGENTS.md with persona: {cfg.persona.name}")
+    else:
+        typer.echo("No changes. Use --persona to change persona or --regen to regenerate.")
 
 
 _DEFAULT_CONFIG_TOML = """\
@@ -77,7 +93,7 @@ _DEFAULT_CONFIG_TOML = """\
 name = "{persona}"
 
 [memory]
-embedding_model = "BAAI/bge-small-en-v1.5"
+embedding_model = "{embedding_model}"
 
 [skills]
 preferred = []
@@ -149,7 +165,7 @@ def init(
     config_path = vault / "Natalie" / "config.toml"
     if not config_path.exists():
         config_path.write_text(
-            _DEFAULT_CONFIG_TOML.format(persona=persona),
+            _DEFAULT_CONFIG_TOML.format(persona=persona, embedding_model=DEFAULT_EMBEDDING_MODEL),
             encoding="utf-8",
         )
 
@@ -225,21 +241,17 @@ def init(
                 "command": [server_bin],
                 "enabled": True,
             }
-        }
+        },
     }
     # opencode.json — merge so other MCP entries are preserved
     _merge_json(vault / "opencode.json", opencode_cfg)
 
-    hooks_cfg = {
-        "tool.execute.after": {
-            "command": f"{natalie_bin} sync"
-        }
-    }
+    hooks_cfg = {"tool.execute.after": {"command": f"{natalie_bin} sync"}}
     # .opencode/hooks.json — merge
     _merge_json(vault / ".opencode" / "hooks.json", hooks_cfg)
 
     typer.echo(f"Vault initialized at: {vault}")
-    typer.echo(f"Next step: run 'natalie sync --full' to build the initial search index.")
+    typer.echo(f"Next step: from {vault}, run 'natalie sync --full' to build the initial search index.")
 
 
 if __name__ == "__main__":

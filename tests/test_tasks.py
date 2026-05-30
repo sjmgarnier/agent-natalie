@@ -1,9 +1,13 @@
-from natalie.features.tasks import discover_tasks, capture_task, complete_task
+from natalie.features.tasks import capture_task, complete_task, discover_tasks
 from tests.helpers import write_note
 
 
 def test_discover_tasks_finds_open_checkboxes(vault):
-    write_note(vault, "work.md", "# Work\n\n- [ ] Write report\n- [x] Done thing\n- [ ] Review PR\n")
+    write_note(
+        vault,
+        "work.md",
+        "# Work\n\n- [ ] Write report\n- [x] Done thing\n- [ ] Review PR\n",
+    )
     tasks = discover_tasks(vault)
     open_tasks = [t for t in tasks if not t["done"]]
     assert len(open_tasks) == 2
@@ -54,7 +58,11 @@ def test_complete_task_returns_false_if_not_found(vault):
 
 def test_discover_tasks_recognises_uppercase_X(vault):
     """Obsidian allows [X] (uppercase) for completed tasks; both forms must be found."""
-    write_note(vault, "mixed.md", "- [X] Done uppercase\n- [x] Done lowercase\n- [ ] Still open\n")
+    write_note(
+        vault,
+        "mixed.md",
+        "- [X] Done uppercase\n- [x] Done lowercase\n- [ ] Still open\n",
+    )
     tasks = discover_tasks(vault)
     assert len(tasks) == 3
     done = [t for t in tasks if t["done"]]
@@ -65,7 +73,8 @@ def test_discover_tasks_recognises_uppercase_X(vault):
 
 
 def test_complete_task_handles_trailing_whitespace(vault):
-    from natalie.features.tasks import discover_tasks, complete_task
+    from natalie.features.tasks import complete_task, discover_tasks
+
     note = vault / "tasks.md"
     note.write_text("- [ ] Buy groceries  \n")  # two trailing spaces
     tasks = discover_tasks(vault)
@@ -73,3 +82,17 @@ def test_complete_task_handles_trailing_whitespace(vault):
     result = complete_task(vault, "tasks.md", "Buy groceries")
     assert result is True
     assert "[x]" in note.read_text()
+
+
+def test_discover_tasks_works_with_symlinked_vault(vault):
+    """discover_tasks must not raise ValueError when vault is a symlink — B2."""
+    import os
+    import tempfile
+    from pathlib import Path
+
+    write_note(vault, "tasks.md", "- [ ] A task\n")
+    with tempfile.TemporaryDirectory() as td:
+        link = Path(td) / "vault_link"
+        os.symlink(vault, link)
+        tasks = discover_tasks(link)
+    assert any(t["text"] == "A task" for t in tasks)

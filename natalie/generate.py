@@ -33,6 +33,7 @@ def render_instructions(
     template = env.get_template(f"{target}.md.jinja")
     return template.render(
         persona_content=persona.content.strip(),
+        persona_name=persona.metadata.get("name", ""),
         preferred_skills=config.skills.preferred,
         denied_skills=config.skills.denied,
         preferred_mcps=config.mcps.preferred,

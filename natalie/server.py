@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import re
-import socket
 import sqlite3
 import sys
 import time
@@ -13,12 +11,12 @@ from pathlib import Path
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from .features import memory as mem
-from .features import tasks as tasks_mod
-from .features import documents as docs_mod
-from .features import contacts as contacts_mod
 from .config import NatalieConfig, load_config
 from .db import init_db
+from .features import contacts as contacts_mod
+from .features import documents as docs_mod
+from .features import memory as mem
+from .features import tasks as tasks_mod
 from .utils import safe_join
 from .vault import require_vault
 
@@ -90,7 +88,10 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
     config = _get_config()
     kw = mem.keyword_search(db, query, limit=limit * 2, collection=collection)
     se = mem.semantic_search(
-        db, query, limit=limit * 2, collection=collection,
+        db,
+        query,
+        limit=limit * 2,
+        collection=collection,
         model_name=config.memory.embedding_model,
     )
 
@@ -101,13 +102,28 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
 
     for rank, r in enumerate(kw, start=1):
         path = r["path"]
-        rrf.setdefault(path, {"path": path, "title": r.get("title"), "score": 0.0, "excerpt": r.get("excerpt", ""), "source": "keyword"})
+        rrf.setdefault(
+            path,
+            {
+                "path": path,
+                "title": r.get("title"),
+                "score": 0.0,
+                "excerpt": r.get("excerpt", ""),
+                "source": "keyword",
+            },
+        )
         rrf[path]["score"] += 1.0 / (K + rank)
 
     for rank, r in enumerate(se, start=1):
         path = r["path"]
         if path not in rrf:
-            rrf[path] = {"path": path, "title": r.get("title"), "score": 0.0, "excerpt": r.get("excerpt", ""), "source": "semantic"}
+            rrf[path] = {
+                "path": path,
+                "title": r.get("title"),
+                "score": 0.0,
+                "excerpt": r.get("excerpt", ""),
+                "source": "semantic",
+            }
         else:
             rrf[path]["source"] = "hybrid"
         rrf[path]["score"] += 1.0 / (K + rank)
@@ -133,11 +149,6 @@ def memory_store(
     db = _get_db()
     vault = _get_vault()
     mac = str(uuid.getnode())
-    hostname = socket.gethostname()
-    db.execute(
-        "INSERT OR REPLACE INTO machines (mac_address, hostname, last_seen) VALUES (?, ?, datetime('now'))",
-        (mac, hostname),
-    )
     if path is not None:
         rel_path = path
         safe_join(vault, rel_path)  # raises ValueError if path escapes vault
@@ -154,13 +165,19 @@ def memory_store(
         INSERT INTO notes (path, title, body, last_modified, collection, machine_mac)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
-            title = excluded.title,
-            body = excluded.body,
+            title        = excluded.title,
+            body         = excluded.body,
+            tags         = NULL,
+            frontmatter  = NULL,
             last_modified = excluded.last_modified,
-            collection = excluded.collection,
-            machine_mac = excluded.machine_mac
+            collection   = excluded.collection,
+            machine_mac  = excluded.machine_mac
         """,
         (rel_path, title or "Untitled", content, time.time(), collection, mac),
+    )
+    db.execute(
+        "DELETE FROM embeddings WHERE note_id = (SELECT id FROM notes WHERE path = ?)",
+        (rel_path,),
     )
     db.commit()
     return {"stored": True, "path": rel_path, "collection": collection}
@@ -184,23 +201,23 @@ def note_write(path: str, content: str) -> dict:
 
 
 @mcp.tool()
-def convention_list_tool(domain: str | None = None) -> list[dict]:
+def convention_list(domain: str | None = None) -> list[dict]:
     """List established conventions, optionally filtered by domain."""
     return mem.convention_list(_get_db(), domain=domain)
 
 
 @mcp.tool()
-def convention_add_tool(domain: str, rule: str, source: str = "explicit") -> dict:
+def convention_add(domain: str, rule: str, source: str = "explicit") -> dict:
     """Add a convention. source: 'explicit' (user-stated) or 'observed' (pattern noticed)."""
     conv_id = mem.convention_add(_get_db(), domain=domain, rule=rule, source=source)
     return {"id": conv_id, "domain": domain, "rule": rule, "source": source}
 
 
 @mcp.tool()
-def convention_delete_tool(convention_id: int) -> dict:
+def convention_delete(convention_id: int) -> dict:
     """Remove a convention by ID."""
-    mem.convention_delete(_get_db(), convention_id)
-    return {"deleted": True, "id": convention_id}
+    deleted = mem.convention_delete(_get_db(), convention_id)
+    return {"deleted": deleted, "id": convention_id}
 
 
 @mcp.tool()

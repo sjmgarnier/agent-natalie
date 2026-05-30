@@ -1,4 +1,5 @@
 import pytest
+
 from natalie.vault import find_vault, require_vault
 
 

@@ -1,7 +1,7 @@
 import pytest
-from pathlib import Path
+
+from natalie.config import NatalieConfig
 from natalie.generate import load_persona, render_instructions
-from natalie.config import NatalieConfig, PersonaConfig
 
 
 def test_load_persona_returns_preset(tmp_path):
@@ -40,14 +40,16 @@ def test_render_instructions_agents_target(vault, config):
 
 def test_render_instructions_includes_preferred_skills(vault):
     from natalie.config import SkillsConfig
-    cfg = NatalieConfig(vault=vault, skills=SkillsConfig(preferred=["superpowers"]))
+
+    cfg = NatalieConfig(skills=SkillsConfig(preferred=["superpowers"]))
     output = render_instructions(cfg, vault, target="claude")
     assert "superpowers" in output
 
 
 def test_render_instructions_includes_denied_mcps(vault):
     from natalie.config import McpsConfig
-    cfg = NatalieConfig(vault=vault, mcps=McpsConfig(denied=["bad-mcp"]))
+
+    cfg = NatalieConfig(mcps=McpsConfig(denied=["bad-mcp"]))
     output = render_instructions(cfg, vault, target="claude")
     assert "bad-mcp" in output
 
@@ -62,3 +64,10 @@ def test_load_persona_rejects_path_traversal_preset():
     """Path traversal must be rejected even when no vault is provided."""
     with pytest.raises(ValueError):
         load_persona("../../etc/passwd")
+
+
+def test_render_instructions_uses_persona_name_in_header(vault, config):
+    """The file header must use the persona metadata name, not a hardcoded string — I3."""
+    output = render_instructions(config, vault, target="claude")
+    header_section = output.split("<!-- agent-natalie:persona:start -->")[0]
+    assert "Natalie Teeger" in header_section

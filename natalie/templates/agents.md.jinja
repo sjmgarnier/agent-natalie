@@ -1,4 +1,4 @@
-# Natalie — Personal Assistant (OpenCode)
+# {{ persona_name or "Natalie" }} — Personal Assistant (OpenCode)
 
 <!-- agent-natalie:persona:start -->
 {{ persona_content }}
@@ -16,8 +16,10 @@ call `memory_store` to keep it.
 
 ## Conventions
 
-Before acting on any request, call `convention_list_tool` for the relevant domain
+Before acting on any request, call `convention_list` for the relevant domain
 to check for established rules. Follow them.
+
+Use `convention_add` to record a new rule, and `convention_delete` to remove one by ID.
 
 ## Tasks
 

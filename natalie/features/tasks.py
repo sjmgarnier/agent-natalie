@@ -18,12 +18,14 @@ def discover_tasks(vault: Path) -> list[dict]:
         text = md.read_text(encoding="utf-8")
         for m in _ANY_RE.finditer(text):
             marker, task_text = m.group(1), m.group(2).strip()
-            tasks.append({
-                "text": task_text,
-                "done": "[x]" in marker.lower(),
-                "path": rel,
-                "line": text[: m.start()].count("\n") + 1,
-            })
+            tasks.append(
+                {
+                    "text": task_text,
+                    "done": "[x]" in marker.lower(),
+                    "path": rel,
+                    "line": text[: m.start()].count("\n") + 1,
+                }
+            )
     return tasks
 
 
@@ -46,9 +48,7 @@ def complete_task(vault: Path, rel_path: str, task_text: str) -> bool:
     if not full.exists():
         return False
     content = full.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"^(\s*)- \[ \] (" + re.escape(task_text) + r")\s*$", re.MULTILINE
-    )
+    pattern = re.compile(r"^(\s*)- \[ \] (" + re.escape(task_text) + r")\s*$", re.MULTILINE)
     new_content = pattern.sub(r"\g<1>- [x] \g<2>", content)
     if new_content == content:
         return False

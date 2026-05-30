@@ -1,6 +1,4 @@
-import sqlite3
-import pytest
-from natalie.db import init_db, get_db
+from natalie.db import get_db, init_db
 
 
 def test_init_db_creates_natalie_db_file(tmp_path):
@@ -24,7 +22,8 @@ def test_init_db_creates_fts_table(vault):
 def test_init_db_creates_all_tables(vault):
     conn = get_db(vault)
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    assert {"notes", "embeddings", "conventions", "machines"}.issubset(tables)
+    assert {"notes", "embeddings", "conventions"}.issubset(tables)
+    assert "machines" not in tables
 
 
 def test_notes_fts_triggers_on_insert(vault):

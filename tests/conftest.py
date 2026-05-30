@@ -1,9 +1,7 @@
 import pytest
-from pathlib import Path
-from natalie.db import init_db, get_db
+
 from natalie.config import load_config
-
-
+from natalie.db import get_db, init_db
 
 
 @pytest.fixture
