@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -116,12 +117,14 @@ def keyword_search(
 # ── Embeddings ────────────────────────────────────────────────────────────────
 
 _embedding_models: dict[str, TextEmbedding] = {}
+_embedding_models_lock: threading.Lock = threading.Lock()
 
 
 def _get_embedding_model(model_name: str = DEFAULT_EMBEDDING_MODEL) -> TextEmbedding:
-    if model_name not in _embedding_models:
-        _embedding_models[model_name] = TextEmbedding(model_name=model_name)
-    return _embedding_models[model_name]
+    with _embedding_models_lock:
+        if model_name not in _embedding_models:
+            _embedding_models[model_name] = TextEmbedding(model_name=model_name)
+        return _embedding_models[model_name]
 
 
 def embed_notes(
@@ -153,7 +156,7 @@ def embed_notes(
         for row, vec in zip(batch_rows, vectors):
             arr = np.array(vec, dtype=np.float32)
             db.execute(
-                "INSERT INTO embeddings (note_id, vector) VALUES (?, ?)",
+                "INSERT OR IGNORE INTO embeddings (note_id, vector) VALUES (?, ?)",
                 (row["id"], arr.tobytes()),
             )
             count += 1

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -181,30 +182,33 @@ def test_obsidian_write_creates_parent_dirs_on_fallback(vault: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_note_write_rejects_empty_path(vault: Path, db, config, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_note_write_rejects_empty_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
     """I6: note_write with empty path must raise ValueError."""
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", config)
     with pytest.raises(ValueError, match="path"):
         srv.note_write("", "content")
 
 
-def test_note_write_rejects_whitespace_path(vault: Path, db, config, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_note_write_rejects_whitespace_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
     """I6: note_write with whitespace-only path must raise ValueError."""
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", config)
     with pytest.raises(ValueError, match="path"):
         srv.note_write("   ", "content")
 
 
 def test_note_write_succeeds_when_rest_returns_200_and_no_local_file(
-    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """C1: note_write must not raise FileNotFoundError when Obsidian REST returns 200."""
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", config)
 
     mock_response = MagicMock()
@@ -221,7 +225,8 @@ def test_note_write_indexes_note_in_db_when_rest_succeeds(
 ) -> None:
     """C1: note_write must index the note in the DB even when REST handles the write."""
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", config)
 
     mock_response = MagicMock()
@@ -231,14 +236,15 @@ def test_note_write_indexes_note_in_db_when_rest_succeeds(
         srv.note_write("indexed.md", "# Indexed\n\nShould be in DB")
 
     row = db.execute("SELECT title FROM notes WHERE path = 'indexed.md'").fetchone()
-    assert row is not None  # note was indexed
+    assert row is not None  # note was indexed via committed thread-local connection
 
 
 def test_memory_store_rejects_path_traversal(
-    vault: Path, db: object, config: object, monkeypatch: pytest.MonkeyPatch
+    vault: Path, config: object, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", config)
     with pytest.raises(ValueError, match="escapes"):
         srv.memory_store(content="x", path="../../../etc/passwd")
@@ -248,9 +254,35 @@ def test_memory_store_canonicalizes_path_in_db(
     vault: Path, db: object, config: object, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", config)
     result = srv.memory_store(content="hello", path="subdir/../note.md")
     assert result["path"] == "note.md"
     row = db.execute("SELECT path FROM notes WHERE path = 'note.md'").fetchone()  # type: ignore[union-attr]
     assert row is not None
+
+
+# ---------------------------------------------------------------------------
+# Thread-local DB connections — C3
+# ---------------------------------------------------------------------------
+
+
+def test_get_db_returns_thread_local_connections(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """C3: each FastMCP worker thread must get its own connection, not share the main-thread connection."""
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+
+    connections: dict[str, int] = {}
+
+    def capture(name: str) -> None:
+        connections[name] = id(srv._get_db())
+
+    t1 = threading.Thread(target=capture, args=("t1",))
+    t2 = threading.Thread(target=capture, args=("t2",))
+    t1.start()
+    t1.join()
+    t2.start()
+    t2.join()
+
+    assert connections["t1"] != connections["t2"], "Each thread must receive its own connection object"

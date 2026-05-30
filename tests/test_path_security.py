@@ -60,11 +60,14 @@ def test_note_write_indexes_canonical_path(vault, db, monkeypatch):
     otherwise the DB row has a non-canonical key that sync_vault's deletion pass
     won't recognise and will never clean up.
     """
+    import threading
+
     import natalie.server as srv
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", NatalieConfig())
 
     # Create subdirectory so the path with '..' is valid inside the vault

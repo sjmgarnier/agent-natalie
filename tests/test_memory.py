@@ -1,4 +1,5 @@
 import json
+import threading
 from unittest.mock import patch
 
 import numpy as np
@@ -214,7 +215,8 @@ def test_memory_store_writes_to_disk(vault, db, monkeypatch):
     import natalie.server as srv
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_config", NatalieConfig())
@@ -267,7 +269,8 @@ def test_memory_store_unique_paths_no_collision(vault, db, monkeypatch):
     import natalie.server as srv
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_config", NatalieConfig())
@@ -290,7 +293,8 @@ def test_memory_store_overwrites_vault_note_sets_machine_mac(vault, db, monkeypa
     import natalie.server as srv
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_config", NatalieConfig())
@@ -388,7 +392,8 @@ def test_memory_store_clears_stale_tags_and_frontmatter(vault, db, monkeypatch):
     import natalie.server as srv
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_config", NatalieConfig())
@@ -426,7 +431,8 @@ def test_memory_store_clears_stale_embedding(vault, db, monkeypatch):
     import natalie.server as srv
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_config", NatalieConfig())
@@ -461,7 +467,8 @@ def test_memory_search_rrf_semantic_only_hit_can_rank_first(vault, db, monkeypat
     from natalie.config import NatalieConfig
 
     monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
     monkeypatch.setattr(srv, "_config", NatalieConfig())
 
     # Create two notes; the keyword note matches by a common word, the semantic note
@@ -662,3 +669,77 @@ def test_embed_notes_raises_on_vector_count_mismatch(vault, db, monkeypatch) -> 
 
     with pytest.raises(AssertionError):
         embed_notes(db)
+
+
+# ---------------------------------------------------------------------------
+# Thread safety — C4 (_get_embedding_model lock) + C5 (INSERT OR IGNORE)
+# ---------------------------------------------------------------------------
+
+
+def test_get_embedding_model_initializes_only_once_under_concurrency(monkeypatch) -> None:
+    """C4: concurrent callers must not double-initialize TextEmbedding (double model download)."""
+    import time
+
+    import natalie.features.memory as mem_mod
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {})
+
+    init_count = 0
+    barrier = threading.Barrier(4)
+
+    class _SlowModel:
+        def __init__(self, model_name: str) -> None:
+            nonlocal init_count
+            time.sleep(0.01)  # releases GIL so other threads can observe the race
+            init_count += 1
+
+    monkeypatch.setattr(mem_mod, "TextEmbedding", _SlowModel)
+
+    results: list[object] = []
+
+    def get_model() -> None:
+        barrier.wait()  # all threads enter simultaneously to maximise race window
+        results.append(mem_mod._get_embedding_model())
+
+    threads = [threading.Thread(target=get_model) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert init_count == 1, f"TextEmbedding was initialized {init_count} times (expected 1)"
+    assert all(r is results[0] for r in results), "All threads must receive the same model instance"
+
+
+def test_embed_notes_no_crash_when_embedding_inserted_concurrently(vault, db, monkeypatch) -> None:
+    """C5: embed_notes must use INSERT OR IGNORE so a concurrent insert doesn't raise IntegrityError."""
+    import natalie.features.memory as mem_mod
+    from natalie.db import get_db as _get_db
+
+    write_note(vault, "race.md", "# Race\nContent")
+    index_note(db, vault, vault / "race.md")
+    note_id = db.execute("SELECT id FROM notes WHERE path='race.md'").fetchone()["id"]
+
+    pre_inserted = [False]
+
+    class _RaceModel:
+        """Simulates a concurrent process inserting the embedding between our SELECT and INSERT."""
+
+        def embed(self, texts):  # type: ignore[override]
+            if not pre_inserted[0]:
+                pre_inserted[0] = True
+                conn2 = _get_db(vault)
+                vec = np.zeros(384, dtype=np.float32)
+                conn2.execute(
+                    "INSERT INTO embeddings (note_id, vector) VALUES (?, ?)",
+                    (note_id, vec.tobytes()),
+                )
+                conn2.commit()
+                conn2.close()
+            return [np.zeros(384) for _ in texts]
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": _RaceModel()})
+
+    # Without INSERT OR IGNORE this raises IntegrityError; with it, silently skips
+    result = embed_notes(db)
+    assert result >= 0

@@ -3,17 +3,18 @@ from __future__ import annotations
 import re
 import sqlite3
 import sys
+import threading
 import time
 import urllib.parse
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
 from .config import NatalieConfig, load_config
-from .db import init_db
+from .db import get_db, init_db
 from .features import contacts as contacts_mod
 from .features import documents as docs_mod
 from .features import memory as mem
@@ -26,7 +27,8 @@ mcp = FastMCP("natalie")
 # Module-level state — populated in main() before mcp.run()
 _vault: Path | None = None
 _config: NatalieConfig | None = None
-_db: sqlite3.Connection | None = None
+_db_vault: Path | None = None  # vault path used to create per-thread connections
+_db_local: threading.local = threading.local()  # each FastMCP worker thread gets its own connection
 
 
 def _get_vault() -> Path:
@@ -40,8 +42,10 @@ def _get_config() -> NatalieConfig:
 
 
 def _get_db() -> sqlite3.Connection:
-    assert _db is not None, "Server not initialized"
-    return _db
+    assert _db_vault is not None, "Server not initialized"
+    if not hasattr(_db_local, "conn"):
+        _db_local.conn = get_db(_db_vault)
+    return cast(sqlite3.Connection, _db_local.conn)
 
 
 def _obsidian_read(vault: Path, rel_path: str) -> str | None:
@@ -287,13 +291,14 @@ def contact_list() -> list[str]:
 
 
 def main() -> None:
-    global _vault, _config, _db
+    global _vault, _config, _db_vault
     try:
         _vault = require_vault()
     except RuntimeError as exc:
         sys.exit(str(exc))
     _config = load_config(_vault)
-    _db = init_db(_vault)
+    init_db(_vault)  # create schema; connections are opened per-thread via _get_db()
+    _db_vault = _vault
     mcp.run()
 
 
