@@ -26,7 +26,7 @@ is working from that directory.
 ## Install
 
 ```bash
-git clone <repo-url> agent-natalie
+git clone https://github.com/sjmgarnier/agent-natalie agent-natalie
 bash agent-natalie/install.sh
 ```
 
