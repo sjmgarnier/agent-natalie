@@ -1,5 +1,7 @@
 import json
 import tomllib
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +20,10 @@ app = typer.Typer(
     add_completion=False,
 )
 
-__version__ = "0.1.0"
+try:
+    __version__ = _pkg_version("agent-natalie")
+except PackageNotFoundError:
+    __version__ = "0.0.0+dev"
 
 
 def _version_callback(value: bool) -> None:
@@ -55,9 +60,13 @@ def sync(
         result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
     finally:
         db.close()
-    typer.echo(
-        f"Synced: {result['indexed']} indexed, {result['removed']} removed, {result['embedded']} embedded."
-    )
+    if full:
+        typer.echo(f"Full rebuild: {result['embedded']} embedded, {result['removed']} removed.")
+    else:
+        typer.echo(
+            f"Synced: {result['indexed']} indexed, "
+            f"{result['removed']} removed, {result['embedded']} embedded."
+        )
 
 
 @app.command()

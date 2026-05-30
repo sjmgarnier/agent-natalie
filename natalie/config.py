@@ -17,6 +17,7 @@ class PersonaConfig:
 
 @dataclass
 class MemoryConfig:
+    # keep in sync with features/memory.DEFAULT_EMBEDDING_MODEL
     embedding_model: str = "BAAI/bge-small-en-v1.5"
 
 

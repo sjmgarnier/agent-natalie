@@ -103,7 +103,7 @@ def keyword_search(
         JOIN notes n ON n.id = notes_fts.rowid
         WHERE notes_fts MATCH :q
         {collection_clause}
-        ORDER BY score
+        ORDER BY score       -- BM25 returns negative scores; ASC = best match first
         LIMIT :lim
     """  # nosec B608
     params: dict[str, Any] = {"q": fts_query, "lim": limit}
