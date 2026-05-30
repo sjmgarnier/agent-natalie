@@ -554,3 +554,51 @@ def test_semantic_search_zero_query_never_raises(db, monkeypatch, query):
     monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": _ZeroModel()})
     results = semantic_search(db, query)
     assert isinstance(results, list)
+
+
+# ── embed_notes failure modes ─────────────────────────────────────────────────
+
+
+def test_embed_notes_no_op_when_all_notes_already_embedded(vault, db, monkeypatch) -> None:
+    import natalie.features.memory as mem_mod
+
+    note = write_note(vault, "already.md", "---\ntitle: Already\n---\nEmbedded.")
+    index_note(db, vault, note)
+
+    class _TrackingModel:
+        called: bool = False
+
+        def embed(self, texts):  # type: ignore[override]
+            _TrackingModel.called = True
+            yield from _FakeEmbedding().embed(texts)
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": _TrackingModel()})
+    embed_notes(db)  # embeds the note
+    _TrackingModel.called = False
+
+    result = embed_notes(db)  # nothing left to embed
+
+    assert result == 0
+    assert not _TrackingModel.called
+
+
+def test_embed_notes_raising_model_leaves_no_partial_embeddings(vault, db, monkeypatch) -> None:
+    import natalie.features.memory as mem_mod
+
+    note1 = write_note(vault, "note1.md", "---\ntitle: Note1\n---\nFirst note.")
+    note2 = write_note(vault, "note2.md", "---\ntitle: Note2\n---\nSecond note.")
+    index_note(db, vault, note1)
+    index_note(db, vault, note2)
+
+    class _RaisingModel:
+        def embed(self, texts):  # type: ignore[override]
+            raise RuntimeError("embedding service unavailable")
+            yield  # make it a generator to match the protocol
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": _RaisingModel()})
+
+    with pytest.raises(RuntimeError, match="embedding service unavailable"):
+        embed_notes(db)
+
+    count = db.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
+    assert count == 0
