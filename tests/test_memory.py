@@ -90,6 +90,18 @@ def test_remove_note_deletes_row(vault, db):
     assert get_notes(db) == []
 
 
+def test_remove_note_preserves_memory_store_entry(db):
+    """remove_note must not delete memory_store rows (machine_mac IS NOT NULL) — B1."""
+    db.execute(
+        "INSERT INTO notes (path, title, body, collection, machine_mac) VALUES (?, ?, ?, ?, ?)",
+        ("shared.md", "Memory Entry", "memory content", "global", "aa:bb:cc:dd:ee:ff"),
+    )
+    db.commit()
+    remove_note(db, "shared.md")
+    row = db.execute("SELECT id FROM notes WHERE path = 'shared.md'").fetchone()
+    assert row is not None, "memory_store entry must survive remove_note"
+
+
 def test_fts_returns_matching_notes(vault, db):
     write_note(vault, "alpha.md", "---\ntitle: Alpha\n---\napple banana cherry")
     write_note(vault, "beta.md", "---\ntitle: Beta\n---\ndragonfly elephant")
@@ -349,6 +361,24 @@ def test_index_note_handles_non_canonical_vault_path(vault, db):
         index_note(db, link, (link / "symlink-test.md").resolve())
     rows = get_notes(db)
     assert any(r["path"] == "symlink-test.md" for r in rows)
+
+
+def test_index_note_handles_non_canonical_note_path(vault, db):
+    """index_note must not raise when note_path itself is unresolved (symlink) — I1."""
+    import os
+    import tempfile
+
+    note_file = vault / "via-link.md"
+    note_file.write_text("---\ntitle: Via Link\n---\nContent")
+    with tempfile.TemporaryDirectory() as td:
+        from pathlib import Path as _Path
+
+        link = _Path(td) / "vault_link"
+        os.symlink(vault, link)
+        # Pass note_path via the symlinked directory without resolving it
+        index_note(db, vault, link / "via-link.md")
+    rows = get_notes(db)
+    assert any(r["path"] == "via-link.md" for r in rows)
 
 
 def test_memory_store_clears_stale_tags_and_frontmatter(vault, db, monkeypatch):

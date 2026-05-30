@@ -41,6 +41,7 @@ def test_sync_cli_command_runs(vault, db):
 
     from natalie.cli import app
 
+    write_note(vault, "indexed.md", "---\ntitle: Indexed\n---\nContent.")
     runner = CliRunner()
     with (
         patch("natalie.cli.require_vault", return_value=vault),
@@ -51,6 +52,15 @@ def test_sync_cli_command_runs(vault, db):
         mock_cfg.return_value.memory.embedding_model = "BAAI/bge-small-en-v1.5"
         result = runner.invoke(app, ["sync"])
     assert result.exit_code == 0
+    assert "1 indexed" in result.output
+
+
+def test_sync_vault_full_indexed_count_is_zero(vault, db):
+    """full sync must return indexed=0 — it rebuilds from scratch, not new/changed — I2."""
+    write_note(vault, "existing.md", "---\ntitle: Existing\n---\nContent.")
+    with patch("natalie.features.sync.embed_notes"):
+        result = sync_vault(db, vault, full=True)
+    assert result["indexed"] == 0
 
 
 def test_sync_vault_full_wipes_and_reindexes(vault, db):

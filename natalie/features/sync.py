@@ -11,7 +11,7 @@ def sync_vault(
     vault: Path,
     full: bool = False,
     model_name: str = DEFAULT_EMBEDDING_MODEL,
-) -> dict:
+) -> dict[str, int]:
     """Index new/changed vault notes; optionally remove stale entries.
 
     Returns: {indexed: int, removed: int, embedded: int}
@@ -42,4 +42,5 @@ def sync_vault(
         removed += 1
 
     embedded = embed_notes(db, model_name=model_name)
-    return {"indexed": indexed, "removed": removed, "embedded": embedded}
+    # full=True wipes and rebuilds from scratch; indexed means "new/changed", which is undefined
+    return {"indexed": 0 if full else indexed, "removed": removed, "embedded": embedded}

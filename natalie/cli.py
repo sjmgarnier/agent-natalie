@@ -1,6 +1,7 @@
 import json
 import tomllib
 from pathlib import Path
+from typing import Any
 
 import tomli_w
 import typer
@@ -111,7 +112,7 @@ directory = "Natalie/Contacts"
 """
 
 
-def _deep_merge(base: dict, update: dict) -> None:
+def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> None:
     """Recursively merge update into base in-place."""
     for key, value in update.items():
         if key in base and isinstance(base[key], dict) and isinstance(value, dict):
@@ -125,7 +126,7 @@ def _deep_merge(base: dict, update: dict) -> None:
             base[key] = value
 
 
-def _merge_json(path: Path, update: dict) -> None:
+def _merge_json(path: Path, update: dict[str, Any]) -> None:
     """Read existing JSON if present, deep-merge update into it, write back."""
     if path.exists():
         try:
@@ -220,18 +221,24 @@ def init(
     }
     _merge_json(vault / ".mcp.json", mcp_json)
 
-    # .claude/settings.json — hooks only; preserve existing entries
-    settings = {
-        "hooks": {
-            "PostToolUse": [
-                {
-                    "matcher": "*",
-                    "hooks": [{"type": "command", "command": f"{natalie_bin} sync"}],
-                }
-            ]
-        },
+    # .claude/settings.json — always replace hooks to prevent duplicate accumulation
+    settings_path = vault / ".claude" / "settings.json"
+    if settings_path.exists():
+        try:
+            existing_settings: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing_settings = {}
+    else:
+        existing_settings = {}
+    existing_settings["hooks"] = {
+        "PostToolUse": [
+            {
+                "matcher": "*",
+                "hooks": [{"type": "command", "command": f"{natalie_bin} sync"}],
+            }
+        ]
     }
-    _merge_json(vault / ".claude" / "settings.json", settings)
+    settings_path.write_text(json.dumps(existing_settings, indent=2), encoding="utf-8")
 
     opencode_cfg = {
         "$schema": "https://opencode.ai/config.json",

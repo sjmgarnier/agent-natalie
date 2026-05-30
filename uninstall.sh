@@ -43,7 +43,9 @@ if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
     if [[ "$REMOVE_SCAFFOLD" =~ ^[Yy]$ ]]; then
         rm -rf "$VAULT_PATH/.natalie" "$VAULT_PATH/Natalie"
         for f in CLAUDE.md AGENTS.md Dashboard.md; do
-            [[ -f "$VAULT_PATH/$f" ]] && rm "$VAULT_PATH/$f"
+            if [[ -f "$VAULT_PATH/$f" ]]; then
+                rm "$VAULT_PATH/$f"
+            fi
         done
         echo "Vault scaffold removed."
     fi

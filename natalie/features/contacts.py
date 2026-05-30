@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import frontmatter as fm
 
@@ -17,8 +18,10 @@ def _contact_path(vault: Path, config: NatalieConfig, slug: str) -> Path:
     return safe_join(contacts_dir, f"{slug}.md")
 
 
-def update_contact(vault: Path, config: NatalieConfig, slug: str, fields: dict) -> dict:
+def update_contact(vault: Path, config: NatalieConfig, slug: str, fields: dict[str, Any]) -> dict[str, Any]:
     """Create or update a contact card (merge fields into existing frontmatter)."""
+    if not slug or not slug.strip():
+        raise ValueError("slug must not be empty or whitespace")
     path = _contact_path(vault, config, slug)
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = dict(fields)  # avoid mutating caller's dict
@@ -35,14 +38,14 @@ def update_contact(vault: Path, config: NatalieConfig, slug: str, fields: dict) 
     return {"updated": True, "slug": slug}
 
 
-def get_contact(vault: Path, config: NatalieConfig, slug: str) -> dict | None:
+def get_contact(vault: Path, config: NatalieConfig, slug: str) -> dict[str, Any] | None:
     """Return contact metadata dict (plus 'content' body if present), or None if not found."""
     path = _contact_path(vault, config, slug)
     if not path.exists():
         return None
     post = fm.loads(path.read_text(encoding="utf-8"))
     result = dict(post.metadata)
-    if post.content:
+    if post.content is not None:
         result["content"] = post.content
     return result
 

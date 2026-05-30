@@ -21,7 +21,8 @@ def index_note(
     collection: str = "global",
 ) -> bool:
     """Index or update a single vault note. Returns False (no-op) if mtime unchanged."""
-    vault = vault.resolve()  # B3: ensure relative_to() works even with symlinked vault path
+    vault = vault.resolve()
+    note_path = note_path.resolve()  # I1: ensure relative_to() works with symlinked note paths
     rel = note_path.relative_to(vault).as_posix()
     mtime = note_path.stat().st_mtime
 
@@ -62,7 +63,7 @@ def index_note(
 
 
 def remove_note(db: sqlite3.Connection, rel_path: str) -> None:
-    db.execute("DELETE FROM notes WHERE path = ?", (rel_path,))
+    db.execute("DELETE FROM notes WHERE path = ? AND machine_mac IS NULL", (rel_path,))
     db.commit()
 
 

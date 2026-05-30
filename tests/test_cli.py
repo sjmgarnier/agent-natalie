@@ -208,3 +208,14 @@ def test_init_merges_existing_appearance_json(tmp_path):
     assert "natalie-dashboard" in snippets
     assert "MCL Multi Column" in snippets
     assert "MCL Wide Views" in snippets
+
+
+def test_init_does_not_duplicate_hooks(tmp_path):
+    """Repeated natalie init must not accumulate duplicate PostToolUse hooks — B5."""
+    import json
+
+    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)])
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+    hooks = settings.get("hooks", {}).get("PostToolUse", [])
+    assert len(hooks) == 1, f"Expected 1 PostToolUse hook entry, got {len(hooks)}: {hooks}"

@@ -1,3 +1,7 @@
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from natalie.features.contacts import get_contact, list_contacts, update_contact
 
 
@@ -47,6 +51,14 @@ def test_update_contact_handles_content_key(vault, config):
     assert data["name"] == "Alice"
 
 
+def test_get_contact_returns_whitespace_only_body(vault, config):
+    """get_contact must include whitespace-only body (e.g. newlines) — B7."""
+    update_contact(vault, config, "dave", {"name": "Dave", "content": "\n"})
+    card = get_contact(vault, config, "dave")
+    assert card is not None
+    assert "content" in card
+
+
 def test_update_contact_rejects_traversal_in_directory(vault, config):
     """A config.contacts.directory that escapes the vault must raise ValueError."""
     import pytest
@@ -57,3 +69,10 @@ def test_update_contact_rejects_traversal_in_directory(vault, config):
     bad_config = NatalieConfig(contacts=ContactsConfig(directory="../../etc"))
     with pytest.raises(ValueError):
         update_contact(vault, bad_config, "passwd", {"name": "Evil"})
+
+
+@given(slug=st.one_of(st.just(""), st.text(alphabet="\t\n ", min_size=1, max_size=20)))
+@settings(max_examples=50, suppress_health_check=["function_scoped_fixture"])
+def test_update_contact_rejects_empty_slug(vault, config, slug):
+    with pytest.raises(ValueError, match="empty"):
+        update_contact(vault, config, slug, {"name": "Test"})
