@@ -146,7 +146,11 @@ def embed_notes(
     for i in range(0, len(texts), batch_size):
         batch_texts = texts[i : i + batch_size]
         batch_rows = rows[i : i + batch_size]
-        for row, vec in zip(batch_rows, model.embed(batch_texts)):
+        vectors = list(model.embed(batch_texts))
+        assert len(vectors) == len(batch_rows), (
+            f"Embedding model returned {len(vectors)} vectors for {len(batch_rows)} texts"
+        )
+        for row, vec in zip(batch_rows, vectors):
             arr = np.array(vec, dtype=np.float32)
             db.execute(
                 "INSERT INTO embeddings (note_id, vector) VALUES (?, ?)",

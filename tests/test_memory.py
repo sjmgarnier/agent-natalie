@@ -644,3 +644,21 @@ def test_embed_notes_raising_model_leaves_no_partial_embeddings(vault, db, monke
 
     count = db.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
     assert count == 0
+
+
+def test_embed_notes_raises_on_vector_count_mismatch(vault, db, monkeypatch) -> None:
+    import natalie.features.memory as mem_mod
+
+    note1 = write_note(vault, "note1.md", "---\ntitle: Note1\n---\nFirst note.")
+    note2 = write_note(vault, "note2.md", "---\ntitle: Note2\n---\nSecond note.")
+    index_note(db, vault, note1)
+    index_note(db, vault, note2)
+
+    class _ShortModel:
+        def embed(self, texts):  # type: ignore[override]
+            return iter([])  # returns no vectors regardless of input
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": _ShortModel()})
+
+    with pytest.raises(AssertionError):
+        embed_notes(db)
