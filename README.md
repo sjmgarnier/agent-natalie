@@ -37,6 +37,9 @@ The script:
 4. Scaffolds the vault (dashboard, CLAUDE.md, AGENTS.md, CSS snippets, MCP config)
 5. Builds the initial search index
 
+> **Note:** Step 5 downloads the embedding model (~130 MB) on first run. This is cached
+> after the first sync. Allow extra time on slow connections.
+
 ---
 
 ## Obsidian setup
@@ -176,11 +179,11 @@ name = "natalie"
 embedding_model = "BAAI/bge-small-en-v1.5"
 
 [skills]
-preferred = ["superpowers", "r-lib"]   # agent will prefer these
+preferred = []   # e.g. ["superpowers", "r-lib"] — agent will prefer these
 denied    = []
 
 [mcps]
-preferred = ["obsidian", "github"]
+preferred = []   # e.g. ["obsidian", "github"]
 denied    = []
 
 [features.documents]
