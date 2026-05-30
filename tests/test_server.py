@@ -181,6 +181,24 @@ def test_obsidian_write_creates_parent_dirs_on_fallback(vault: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_note_write_rejects_empty_path(vault: Path, db, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    """I6: note_write with empty path must raise ValueError."""
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="path"):
+        srv.note_write("", "content")
+
+
+def test_note_write_rejects_whitespace_path(vault: Path, db, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    """I6: note_write with whitespace-only path must raise ValueError."""
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db", db)
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="path"):
+        srv.note_write("   ", "content")
+
+
 def test_note_write_succeeds_when_rest_returns_200_and_no_local_file(
     vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
 ) -> None:

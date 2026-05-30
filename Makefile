@@ -28,6 +28,8 @@ install-hooks:
 #   3. Set TWINE_USERNAME / TWINE_PASSWORD (or use a ~/.pypirc token)
 #   4. Run: make publish
 publish: check
+	@git diff --exit-code || (echo "ERROR: working tree is dirty — commit or stash changes before publishing"; exit 1)
+	@git diff --cached --exit-code || (echo "ERROR: staged changes present — commit before publishing"; exit 1)
 	rm -rf dist/
 	uv run python -m build
 	uv run twine upload dist/*

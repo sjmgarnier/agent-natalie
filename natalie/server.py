@@ -45,7 +45,7 @@ def _get_db() -> sqlite3.Connection:
 
 
 def _obsidian_read(vault: Path, rel_path: str) -> str | None:
-    safe_join(vault, rel_path)  # raises ValueError if path escapes vault
+    full = safe_join(vault, rel_path)  # raises ValueError if path escapes vault
     encoded = urllib.parse.quote(rel_path, safe="/")
     try:
         r = httpx.get(f"http://127.0.0.1:27123/vault/{encoded}", timeout=2.0)
@@ -53,12 +53,11 @@ def _obsidian_read(vault: Path, rel_path: str) -> str | None:
             return r.text
     except httpx.RequestError:
         pass
-    full = vault / rel_path
     return full.read_text(encoding="utf-8") if full.exists() else None
 
 
 def _obsidian_write(vault: Path, rel_path: str, content: str) -> None:
-    safe_join(vault, rel_path)  # raises ValueError if path escapes vault
+    full = safe_join(vault, rel_path)  # raises ValueError if path escapes vault
     encoded = urllib.parse.quote(rel_path, safe="/")
     try:
         r = httpx.put(
@@ -70,7 +69,6 @@ def _obsidian_write(vault: Path, rel_path: str, content: str) -> None:
             return
     except httpx.RequestError:
         pass
-    full = vault / rel_path
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_text(content, encoding="utf-8")
 
@@ -194,6 +192,8 @@ def note_read(path: str) -> str | None:
 @mcp.tool()
 def note_write(path: str, content: str) -> dict[str, Any]:
     """Write or overwrite a vault note by relative path."""
+    if not path.strip():
+        raise ValueError("path must not be empty")
     vault = _get_vault()
     db = _get_db()
     full = safe_join(vault, path)

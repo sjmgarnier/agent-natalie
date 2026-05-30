@@ -22,8 +22,18 @@ if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
         "$VAULT_PATH/.mcp.json" \
         "$VAULT_PATH/.claude/settings.json" \
         "$VAULT_PATH/opencode.json" \
-        "$VAULT_PATH/.opencode/hooks.json"
+        "$VAULT_PATH/.opencode/hooks.json" \
+        "$VAULT_PATH/.obsidian/appearance.json"
     do
+        if [[ -f "$f" ]]; then
+            rm "$f"
+            echo "Removed $f"
+        fi
+    done
+
+    # ── Remove Natalie CSS snippets ───────────────────────────────────────────
+    for css in natalie-dashboard "MCL Multi Column" "MCL Wide Views"; do
+        f="$VAULT_PATH/.obsidian/snippets/${css}.css"
         if [[ -f "$f" ]]; then
             rm "$f"
             echo "Removed $f"

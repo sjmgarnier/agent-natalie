@@ -27,6 +27,7 @@ if [[ -d "$VENV_DIR" ]]; then
         exit 0
     fi
     echo "Proceeding with full re-install..."
+    rm -rf "$VENV_DIR"
 fi
 
 # ── Install agent-natalie ─────────────────────────────────────────────────────

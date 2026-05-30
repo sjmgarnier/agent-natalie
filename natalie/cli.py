@@ -51,7 +51,10 @@ def sync(
     db = init_db(vault)
     from .features.sync import sync_vault
 
-    result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
+    try:
+        result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
+    finally:
+        db.close()
     typer.echo(
         f"Synced: {result['indexed']} indexed, {result['removed']} removed, {result['embedded']} embedded."
     )

@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+import pytest
+
 from natalie.features.memory import get_notes
 from natalie.features.sync import sync_vault
 from tests.helpers import write_note
@@ -125,6 +127,31 @@ def test_sync_vault_indexed_count_excludes_unchanged_notes(vault, db):
     with patch("natalie.features.sync.embed_notes"):
         second = sync_vault(db, vault)
     assert second["indexed"] == 0
+
+
+def test_full_sync_preserves_notes_if_reindex_fails(vault, db):
+    """I15: if index_note raises during full sync, the pre-existing notes must survive."""
+    write_note(vault, "existing.md", "---\ntitle: Existing\n---\nContent.")
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault)
+
+    before = db.execute("SELECT COUNT(*) FROM notes WHERE machine_mac IS NULL").fetchone()[0]
+    assert before == 1
+
+    # Simulate a crash during re-index by making index_note raise
+    with (
+        patch("natalie.features.sync.embed_notes"),
+        patch("natalie.features.sync.index_note", side_effect=OSError("disk full")),
+        pytest.raises(OSError),
+    ):
+        sync_vault(db, vault, full=True)
+
+    # Roll back the uncommitted DELETE — simulates what SQLite WAL does on process crash.
+    # With the old code the DELETE was committed before re-index, so rollback does nothing.
+    # With the fix the DELETE is uncommitted, so rollback restores the notes.
+    db.rollback()
+    after = db.execute("SELECT COUNT(*) FROM notes WHERE machine_mac IS NULL").fetchone()[0]
+    assert after == 1, "notes must survive rollback after failed full-sync"
 
 
 def test_sync_vault_works_with_symlinked_vault(vault, db):

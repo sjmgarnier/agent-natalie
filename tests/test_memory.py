@@ -582,6 +582,48 @@ def test_embed_notes_no_op_when_all_notes_already_embedded(vault, db, monkeypatc
     assert not _TrackingModel.called
 
 
+def test_semantic_search_results_include_collection_field(vault, db, monkeypatch):
+    """I3: semantic_search results must include 'collection' key to match keyword_search shape."""
+    import natalie.features.memory as mem_mod
+
+    class FakeModel:
+        def embed(self, texts):
+            return [np.ones(4, dtype=np.float32) for _ in texts]
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
+    write_note(vault, "note.md", "---\ntitle: Test\n---\nContent")
+    index_note(db, vault, vault / "note.md")
+    embed_notes(db)
+
+    results = semantic_search(db, "content")
+    assert len(results) > 0
+    assert "collection" in results[0], "semantic_search result must include 'collection' key"
+
+
+def test_convention_add_rejects_empty_domain(db):
+    """I7: convention_add with empty domain must raise ValueError."""
+    with pytest.raises(ValueError, match="domain"):
+        convention_add(db, "", "some rule")
+
+
+def test_convention_add_rejects_whitespace_domain(db):
+    """I7: convention_add with whitespace-only domain must raise ValueError."""
+    with pytest.raises(ValueError, match="domain"):
+        convention_add(db, "   ", "some rule")
+
+
+def test_convention_add_rejects_empty_rule(db):
+    """I7: convention_add with empty rule must raise ValueError."""
+    with pytest.raises(ValueError, match="rule"):
+        convention_add(db, "testing", "")
+
+
+def test_convention_add_rejects_whitespace_rule(db):
+    """I7: convention_add with whitespace-only rule must raise ValueError."""
+    with pytest.raises(ValueError, match="rule"):
+        convention_add(db, "testing", "   ")
+
+
 def test_embed_notes_raising_model_leaves_no_partial_embeddings(vault, db, monkeypatch) -> None:
     import natalie.features.memory as mem_mod
 

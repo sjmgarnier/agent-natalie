@@ -19,8 +19,9 @@ def sync_vault(
     vault = vault.resolve()
 
     if full:
+        # Do not commit here — the DELETE stays in the same transaction as the first
+        # index_note commit, so a crash before re-indexing rolls back the delete.
         db.execute("DELETE FROM notes WHERE machine_mac IS NULL")
-        db.commit()
 
     md_files = {
         p for p in vault.rglob("*.md") if not any(part.startswith(".") for part in p.relative_to(vault).parts)

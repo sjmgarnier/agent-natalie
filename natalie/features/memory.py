@@ -176,7 +176,7 @@ def semantic_search(
     params: list[Any] = [] if not collection else [collection]
     rows = db.execute(
         f"""
-        SELECT n.id, n.path, n.title, n.body, e.vector
+        SELECT n.id, n.path, n.title, n.body, n.collection, e.vector
         FROM notes n JOIN embeddings e ON e.note_id = n.id
         WHERE 1=1 {collection_clause}
         """,  # nosec B608
@@ -199,6 +199,7 @@ def semantic_search(
         {
             "path": row["path"],
             "title": row["title"],
+            "collection": row["collection"],
             "score": round(score, 4),
             "excerpt": (row["body"] or "")[:200],
         }
@@ -218,6 +219,10 @@ def convention_add(
     source: str = "explicit",
 ) -> int:
     """Store a convention. source must be 'explicit' or 'observed'. Returns new row ID."""
+    if not domain.strip():
+        raise ValueError("domain must not be empty")
+    if not rule.strip():
+        raise ValueError("rule must not be empty")
     if source not in _VALID_SOURCES:
         raise ValueError(f"Invalid source {source!r}: must be one of {sorted(_VALID_SOURCES)}")
     cursor = db.execute(
