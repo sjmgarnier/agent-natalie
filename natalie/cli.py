@@ -56,6 +56,8 @@ def sync(
     db = init_db(vault)
     from .features.sync import sync_vault
 
+    if full:
+        typer.echo("Building full index... (first run downloads ~130 MB model; a progress bar will appear)")
     try:
         result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
     finally:

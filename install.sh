@@ -70,7 +70,10 @@ echo "Initializing vault at $VAULT_PATH..."
 
 # ── Build initial index ───────────────────────────────────────────────────────
 echo ""
-echo "Building initial search index (fastembed model downloads on first run)..."
+echo "Building initial search index..."
+echo "On first run this downloads the embedding model (~130 MB)."
+echo "A progress bar will appear below — this may take several minutes on slow connections."
+echo ""
 cd "$VAULT_PATH"
 "$NATALIE" sync --full
 
