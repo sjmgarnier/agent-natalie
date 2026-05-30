@@ -2,9 +2,10 @@ import dataclasses
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 
-def _filter(cls: type, data: dict) -> dict:
+def _filter(cls: type[Any], data: dict[str, Any]) -> dict[str, Any]:
     known = {f.name for f in dataclasses.fields(cls)}
     return {k: v for k, v in data.items() if k in known}
 

@@ -72,6 +72,13 @@ def test_discover_tasks_recognises_uppercase_X(vault):
     assert "Done lowercase" in texts
 
 
+def test_capture_task_returns_dict(vault):
+    result = capture_task(vault, "tasks.md", "buy milk")
+    assert isinstance(result, dict)
+    assert result["captured"] is True
+    assert result["path"] == "tasks.md"
+
+
 def test_complete_task_handles_trailing_whitespace(vault):
     from natalie.features.tasks import complete_task, discover_tasks
 

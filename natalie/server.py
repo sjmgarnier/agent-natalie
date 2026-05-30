@@ -7,6 +7,7 @@ import time
 import urllib.parse
 import uuid
 from pathlib import Path
+from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -82,7 +83,7 @@ def ping() -> str:
 
 
 @mcp.tool()
-def memory_search(query: str, limit: int = 10, collection: str | None = None) -> list[dict]:
+def memory_search(query: str, limit: int = 10, collection: str | None = None) -> list[dict[str, Any]]:
     """Search vault notes by keyword and semantic similarity (hybrid)."""
     db = _get_db()
     config = _get_config()
@@ -98,7 +99,7 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
     # Reciprocal Rank Fusion: score = sum(1 / (k + rank)) across streams
     # k=60 is the standard default — dampens the impact of top ranks slightly
     K = 60
-    rrf: dict[str, dict] = {}
+    rrf: dict[str, dict[str, Any]] = {}
 
     for rank, r in enumerate(kw, start=1):
         path = r["path"]
@@ -144,7 +145,7 @@ def memory_store(
     title: str | None = None,
     collection: str = "global",
     path: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Store an outside-vault knowledge entry in the memory index."""
     db = _get_db()
     vault = _get_vault()
@@ -191,7 +192,7 @@ def note_read(path: str) -> str | None:
 
 
 @mcp.tool()
-def note_write(path: str, content: str) -> dict:
+def note_write(path: str, content: str) -> dict[str, Any]:
     """Write or overwrite a vault note by relative path."""
     vault = _get_vault()
     db = _get_db()
@@ -201,27 +202,27 @@ def note_write(path: str, content: str) -> dict:
 
 
 @mcp.tool()
-def convention_list(domain: str | None = None) -> list[dict]:
+def convention_list(domain: str | None = None) -> list[dict[str, Any]]:
     """List established conventions, optionally filtered by domain."""
     return mem.convention_list(_get_db(), domain=domain)
 
 
 @mcp.tool()
-def convention_add(domain: str, rule: str, source: str = "explicit") -> dict:
+def convention_add(domain: str, rule: str, source: str = "explicit") -> dict[str, Any]:
     """Add a convention. source: 'explicit' (user-stated) or 'observed' (pattern noticed)."""
     conv_id = mem.convention_add(_get_db(), domain=domain, rule=rule, source=source)
     return {"id": conv_id, "domain": domain, "rule": rule, "source": source}
 
 
 @mcp.tool()
-def convention_delete(convention_id: int) -> dict:
+def convention_delete(convention_id: int) -> dict[str, Any]:
     """Remove a convention by ID."""
     deleted = mem.convention_delete(_get_db(), convention_id)
     return {"deleted": deleted, "id": convention_id}
 
 
 @mcp.tool()
-def task_list(done: bool = False) -> list[dict]:
+def task_list(done: bool = False) -> list[dict[str, Any]]:
     """List tasks across the vault. Set done=True to include completed tasks."""
     vault = _get_vault()
     all_tasks = tasks_mod.discover_tasks(vault)
@@ -229,7 +230,7 @@ def task_list(done: bool = False) -> list[dict]:
 
 
 @mcp.tool()
-def task_capture(rel_path: str, task_text: str) -> dict:
+def task_capture(rel_path: str, task_text: str) -> dict[str, Any]:
     """Add a new open task to a vault note."""
     vault = _get_vault()
     tasks_mod.capture_task(vault, rel_path, task_text)
@@ -237,7 +238,7 @@ def task_capture(rel_path: str, task_text: str) -> dict:
 
 
 @mcp.tool()
-def task_complete(rel_path: str, task_text: str) -> dict:
+def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
     """Mark a specific task as done."""
     vault = _get_vault()
     found = tasks_mod.complete_task(vault, rel_path, task_text)
@@ -245,7 +246,7 @@ def task_complete(rel_path: str, task_text: str) -> dict:
 
 
 @mcp.tool()
-def document_file(filename: str, content: str) -> dict:
+def document_file(filename: str, content: str) -> dict[str, Any]:
     """Save content to the documents cabinet."""
     return docs_mod.file_document(_get_vault(), _get_config(), filename, content)
 
@@ -263,13 +264,13 @@ def document_list() -> list[str]:
 
 
 @mcp.tool()
-def contact_get(slug: str) -> dict | None:
+def contact_get(slug: str) -> dict[str, Any] | None:
     """Get a contact card by slug. Returns metadata dict or None."""
     return contacts_mod.get_contact(_get_vault(), _get_config(), slug)
 
 
 @mcp.tool()
-def contact_update(slug: str, fields: dict) -> dict:
+def contact_update(slug: str, fields: dict[str, Any]) -> dict[str, Any]:
     """Create or update a contact card. Fields are merged into existing frontmatter."""
     return contacts_mod.update_contact(_get_vault(), _get_config(), slug, fields)
 

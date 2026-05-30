@@ -1,4 +1,6 @@
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from natalie.features.documents import file_document, list_documents, retrieve_document
 
@@ -44,3 +46,10 @@ def test_file_document_rejects_traversal_in_directory(vault, config):
     bad_config = NatalieConfig(documents=DocumentsConfig(directory="../../etc"))
     with pytest.raises(ValueError):
         file_document(vault, bad_config, "passwd", "root:x:0:0")
+
+
+@given(filename=st.one_of(st.just(""), st.text(alphabet="\t\n ", min_size=1, max_size=20)))
+@settings(max_examples=50, suppress_health_check=["function_scoped_fixture"])
+def test_file_document_rejects_empty_filename(vault, config, filename):
+    with pytest.raises(ValueError, match="empty"):
+        file_document(vault, config, filename, "content")

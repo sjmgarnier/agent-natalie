@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 from ..utils import safe_join
 
-_ANY_RE = re.compile(r"^(\s*- \[[ xX]\] )(.+)$", re.MULTILINE)
+_ANY_RE: re.Pattern[str] = re.compile(r"^(\s*- \[[ xX]\] )(.+)$", re.MULTILINE)
 
 
-def discover_tasks(vault: Path) -> list[dict]:
+def discover_tasks(vault: Path) -> list[dict[str, Any]]:
     """Return all task checkboxes across vault markdown files."""
     tasks = []
     for md in vault.rglob("*.md"):
@@ -29,7 +30,7 @@ def discover_tasks(vault: Path) -> list[dict]:
     return tasks
 
 
-def capture_task(vault: Path, rel_path: str, task_text: str) -> None:
+def capture_task(vault: Path, rel_path: str, task_text: str) -> dict[str, Any]:
     """Append a new open task to a note (creates the file if missing)."""
     full = safe_join(vault, rel_path)
     if full.exists():
@@ -40,6 +41,7 @@ def capture_task(vault: Path, rel_path: str, task_text: str) -> None:
     else:
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_text(f"- [ ] {task_text}\n", encoding="utf-8")
+    return {"captured": True, "path": rel_path}
 
 
 def complete_task(vault: Path, rel_path: str, task_text: str) -> bool:

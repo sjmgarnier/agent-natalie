@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import frontmatter as fm
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import FileSystemLoader
+from jinja2.sandbox import SandboxedEnvironment
 
 from .config import NatalieConfig
 from .utils import safe_join
@@ -29,7 +30,7 @@ def render_instructions(
     target: str = "claude",
 ) -> str:
     persona = load_persona(config.persona.name, vault=vault)
-    env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), keep_trailing_newline=True)
+    env = SandboxedEnvironment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), keep_trailing_newline=True)
     template = env.get_template(f"{target}.md.jinja")
     return template.render(
         persona_content=persona.content.strip(),
