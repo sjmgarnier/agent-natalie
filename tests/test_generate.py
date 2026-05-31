@@ -71,3 +71,17 @@ def test_render_instructions_uses_persona_name_in_header(vault, config):
     output = render_instructions(config, vault, target="claude")
     header_section = output.split("<!-- agent-natalie:persona:start -->")[0]
     assert "Natalie Teeger" in header_section
+
+
+def test_render_instructions_contains_onboarding_section(vault, config):
+    output = render_instructions(config, vault, target="claude")
+    assert "## Onboarding" in output
+    assert "onboarding_status" in output
+    assert "onboarding_complete" in output
+
+
+def test_render_instructions_agents_contains_onboarding_section(vault, config):
+    output = render_instructions(config, vault, target="agents")
+    assert "## Onboarding" in output
+    assert "onboarding_status" in output
+    assert "onboarding_complete" in output
