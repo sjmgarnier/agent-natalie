@@ -90,7 +90,7 @@ live queries. Install it from the community plugin browser:
 
 1. **Settings → Community plugins → Browse**
 2. Search **Dataview** → **Install** → **Enable**
-3. Open **Dataview settings** → enable **Enable JavaScript Queries**
+3. Open **Dataview settings** → enable **Enable JavaScript Queries** and **Enable Inline JavaScript Queries**
 
 Without Dataview the dashboard will show raw code blocks instead of rendered tables and task lists.
 
