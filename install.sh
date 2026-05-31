@@ -21,7 +21,7 @@ if [[ -d "$VENV_DIR" ]]; then
     _UPGRADE="${_UPGRADE:-Y}"
     if [[ "$_UPGRADE" =~ ^[Yy]$ ]]; then
         echo "Upgrading agent-natalie..."
-        uv pip install --python "$VENV_DIR" --upgrade "$SCRIPT_DIR"
+        uv pip install --python "$VENV_DIR" --upgrade agent-natalie
         echo ""
         echo "Done. Run 'natalie sync --full' from your vault directory to rebuild the search index."
         exit 0
@@ -34,7 +34,7 @@ fi
 echo "Creating Python environment at $VENV_DIR..."
 mkdir -p "$HOME/.natalie"
 uv venv "$VENV_DIR"
-uv pip install --python "$VENV_DIR" "$SCRIPT_DIR"
+uv pip install --python "$VENV_DIR" agent-natalie
 
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
