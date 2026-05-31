@@ -1,8 +1,11 @@
 # agent-natalie
 
-A portable personal assistant plugin for Claude Code and OpenCode.
+A portable personal assistant MCP server for AI coding agents.
 Natalie lives in your Obsidian vault and is only active when your agent
 is working from that directory.
+
+Tested with Claude Code and OpenCode. Any MCP-compatible agent client
+should work — see [Connecting your agent](#connecting-your-agent) below.
 
 ## What it does
 
@@ -60,24 +63,46 @@ The dashboard layout requires three CSS snippets that `install.sh` already copie
 
 If the snippets are not listed, click the folder icon to refresh the snippets directory.
 
-### 3. Install and configure Dataview
+### 3. Install the Local REST API plugin
+
+The [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin
+lets Natalie read and write notes through Obsidian rather than directly to disk.
+This keeps Obsidian's cache in sync so changes appear immediately in the UI.
+
+1. **Settings → Community plugins → turn off Restricted Mode → Browse**
+2. Search **Local REST API** → **Install** → **Enable**
+
+No further configuration is needed — the plugin starts a local HTTPS server on port 27123
+and Natalie detects it automatically. Natalie falls back to direct file I/O if the plugin
+is not installed or Obsidian is not running.
+
+### 4. Install and configure Dataview
 
 The dashboard uses [Dataview](https://github.com/blacksmithgu/obsidian-dataview) for
 live queries. Install it from the community plugin browser:
 
-1. **Settings → Community plugins → turn off Restricted Mode → Browse**
+1. **Settings → Community plugins → Browse**
 2. Search **Dataview** → **Install** → **Enable**
 3. Open **Dataview settings** → enable **Enable JavaScript Queries**
 
 Without Dataview the dashboard will show raw code blocks instead of rendered tables and task lists.
 
-### 4. Open the Dashboard
+### 5. Open the Dashboard
 
 Click **Dashboard.md** in the vault root. Switch to Reading view if it doesn't render automatically.
 
 ---
 
-## First run
+## Connecting your agent
+
+`natalie-server` is a standard MCP server. Any MCP-compatible agent client can use it.
+`natalie init` pre-wires **Claude Code** and **OpenCode** automatically; for other clients
+follow the generic instructions below.
+
+> **Compatibility note:** Natalie has been tested with Claude Code and OpenCode.
+> Other MCP clients should work but have not been verified.
+
+### Claude Code
 
 Start Claude Code from inside the vault directory:
 
@@ -88,9 +113,36 @@ claude
 
 Claude Code reads `.mcp.json` and connects to `natalie-server` automatically.
 The Natalie tools (`memory_search`, `note_write`, `task_list`, …) will appear in the tool list.
+`natalie sync` runs automatically as a post-tool-use hook after every tool call.
 
-Run `natalie sync` any time you add new notes outside of Claude Code.
-(It runs automatically as a post-tool-use hook inside Claude Code sessions.)
+### OpenCode
+
+Start OpenCode from inside the vault directory:
+
+```bash
+cd /path/to/your/vault
+opencode
+```
+
+OpenCode reads `opencode.json` and connects to `natalie-server` automatically.
+`natalie sync` runs automatically as a post-tool-use hook after every tool call.
+
+### Other MCP clients
+
+Point your client at the `natalie-server` binary and run it from inside the vault directory:
+
+```
+command: /Users/<you>/.natalie/.venv/bin/natalie-server
+args:    []
+cwd:     /path/to/your/vault
+```
+
+The server uses stdio transport. It discovers the vault by walking up from its working
+directory looking for `.natalie/natalie.db`, so the working directory must be set to
+the vault root (or any subdirectory of it).
+
+Run `natalie sync` from the vault directory any time you add new notes outside of an
+agent session.
 
 ---
 
@@ -210,7 +262,7 @@ corruption. Keep one active session at a time.
 ## Upgrade
 
 ```bash
-bash /path/to/agent-natalie/install.sh
+curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh | bash
 ```
 
 The script detects an existing install and offers to upgrade in place.
@@ -220,5 +272,5 @@ The script detects an existing install and offers to upgrade in place.
 ## Uninstall
 
 ```bash
-bash /path/to/agent-natalie/uninstall.sh
+curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/uninstall.sh | bash
 ```
