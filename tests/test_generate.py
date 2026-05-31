@@ -54,6 +54,22 @@ def test_render_instructions_includes_denied_mcps(vault):
     assert "bad-mcp" in output
 
 
+def test_render_instructions_includes_tasks_note(vault):
+    from natalie.config import TasksConfig
+
+    cfg = NatalieConfig(tasks=TasksConfig(note="Natalie/MyTasks.md"))
+    output = render_instructions(cfg, vault, target="claude")
+    assert "Natalie/MyTasks.md" in output
+
+
+def test_render_instructions_agents_includes_tasks_note(vault):
+    from natalie.config import TasksConfig
+
+    cfg = NatalieConfig(tasks=TasksConfig(note="Natalie/MyTasks.md"))
+    output = render_instructions(cfg, vault, target="agents")
+    assert "Natalie/MyTasks.md" in output
+
+
 def test_load_persona_rejects_path_traversal_vault(vault):
     """Persona name with path traversal must raise ValueError, not read arbitrary files."""
     with pytest.raises(ValueError):

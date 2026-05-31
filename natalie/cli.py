@@ -126,6 +126,9 @@ directory = "Natalie/Documents"
 
 [features.contacts]
 directory = "Natalie/Contacts"
+
+[features.tasks]
+note = "Tasks.md"
 """
 
 

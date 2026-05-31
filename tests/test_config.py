@@ -9,6 +9,7 @@ def test_load_config_returns_defaults_when_no_file(vault):
     assert cfg.skills.denied == []
     assert cfg.documents.directory == "Natalie/Documents"
     assert cfg.contacts.directory == "Natalie/Contacts"
+    assert cfg.tasks.note == "Tasks.md"
 
 
 def test_load_config_reads_persona_name(vault):
@@ -34,6 +35,13 @@ def test_load_config_reads_features(vault):
     cfg = load_config(vault)
     assert cfg.documents.directory == "Notes/Docs"
     assert cfg.contacts.directory == "Notes/People"
+
+
+def test_load_config_reads_tasks_note(vault):
+    config_path = vault / "Natalie" / "config.toml"
+    config_path.write_text('[features.tasks]\nnote = "Natalie/Tasks.md"\n')
+    cfg = load_config(vault)
+    assert cfg.tasks.note == "Natalie/Tasks.md"
 
 
 def test_load_config_ignores_unknown_keys(vault):

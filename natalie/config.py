@@ -49,6 +49,11 @@ class ContactsConfig:
 
 
 @dataclass
+class TasksConfig:
+    note: str = "Tasks.md"
+
+
+@dataclass
 class NatalieConfig:
     obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     persona: PersonaConfig = field(default_factory=PersonaConfig)
@@ -57,6 +62,7 @@ class NatalieConfig:
     mcps: McpsConfig = field(default_factory=McpsConfig)
     documents: DocumentsConfig = field(default_factory=DocumentsConfig)
     contacts: ContactsConfig = field(default_factory=ContactsConfig)
+    tasks: TasksConfig = field(default_factory=TasksConfig)
 
 
 def load_config(vault: Path) -> NatalieConfig:
@@ -82,4 +88,6 @@ def load_config(vault: Path) -> NatalieConfig:
             cfg.documents = DocumentsConfig(**_filter(DocumentsConfig, feats["documents"]))
         if "contacts" in feats:
             cfg.contacts = ContactsConfig(**_filter(ContactsConfig, feats["contacts"]))
+        if "tasks" in feats:
+            cfg.tasks = TasksConfig(**_filter(TasksConfig, feats["tasks"]))
     return cfg

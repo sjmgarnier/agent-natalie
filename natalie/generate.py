@@ -39,4 +39,5 @@ def render_instructions(
         denied_skills=config.skills.denied,
         preferred_mcps=config.mcps.preferred,
         denied_mcps=config.mcps.denied,
+        tasks_note=config.tasks.note,
     )
