@@ -75,7 +75,12 @@ echo "On first run this downloads the embedding model (~130 MB)."
 echo "A progress bar will appear below — this may take several minutes on slow connections."
 echo ""
 cd "$VAULT_PATH"
-"$NATALIE" sync --full
+if ! "$NATALIE" sync --full; then
+    echo ""
+    echo "WARNING: Search index build failed (network or model download issue)."
+    echo "   Your vault was still created at $VAULT_PATH."
+    echo "   Run 'natalie sync --full' from the vault directory when ready."
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
