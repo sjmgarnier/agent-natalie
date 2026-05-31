@@ -26,8 +26,7 @@ is working from that directory.
 ## Install
 
 ```bash
-git clone https://github.com/sjmgarnier/agent-natalie agent-natalie
-bash agent-natalie/install.sh
+curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh | bash
 ```
 
 The script:
