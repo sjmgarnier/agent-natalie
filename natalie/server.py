@@ -18,6 +18,7 @@ from .db import get_db, init_db
 from .features import contacts as contacts_mod
 from .features import documents as docs_mod
 from .features import memory as mem
+from .features import onboarding as onboarding_mod
 from .features import tasks as tasks_mod
 from .utils import safe_join
 from .vault import require_vault
@@ -232,6 +233,18 @@ def convention_delete(convention_id: int) -> dict[str, Any]:
     """Remove a convention by ID."""
     deleted = mem.convention_delete(_get_db(), convention_id)
     return {"deleted": deleted, "id": convention_id}
+
+
+@mcp.tool()
+def onboarding_status() -> dict[str, Any]:
+    """Return whether the onboarding meeting has been completed."""
+    return onboarding_mod.get_onboarding_status(_get_db())
+
+
+@mcp.tool()
+def onboarding_complete() -> dict[str, Any]:
+    """Mark the onboarding meeting as completed."""
+    return onboarding_mod.set_onboarding_complete(_get_db())
 
 
 @mcp.tool()
