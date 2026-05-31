@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# When piped through curl, stdin is the pipe not the terminal.
+# Reopen it so interactive prompts work correctly.
+exec < /dev/tty
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$HOME/.natalie/.venv"
 

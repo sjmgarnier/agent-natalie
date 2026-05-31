@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+exec < /dev/tty
+
 VENV_DIR="$HOME/.natalie/.venv"
 
 echo "This will remove the Natalie Python environment at $VENV_DIR."
