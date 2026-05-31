@@ -38,9 +38,11 @@ uv pip install --python "$VENV_DIR" agent-natalie
 
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
-read -erp "Vault path (default: $HOME/Natalie): " VAULT_PATH
+read -ep "Vault path (default: $HOME/Natalie): " VAULT_PATH
 VAULT_PATH="${VAULT_PATH:-$HOME/Natalie}"
 VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
+# Resolve to absolute path so relative entries and symlinks work correctly
+VAULT_PATH="$(cd "$VAULT_PATH" 2>/dev/null && pwd || echo "$VAULT_PATH")"
 
 # ── Prompt for persona ────────────────────────────────────────────────────────
 echo ""
@@ -104,12 +106,13 @@ echo "       Settings → Community Plugins → Browse"
 echo "       Search 'Dataview' → Install → Enable"
 echo "     Then open Dataview settings and enable 'Enable JavaScript Queries'."
 echo ""
-echo "  4. Start Claude Code from inside the vault:"
-echo "       cd '$VAULT_PATH' && claude"
-echo "     Claude Code reads .mcp.json and connects to natalie-server automatically."
+echo "  4. Start your agent from inside the vault:"
+echo "       cd '$VAULT_PATH' && claude     # Claude Code"
+echo "       cd '$VAULT_PATH' && opencode   # OpenCode"
+echo "     Both read their config files and connect to natalie-server automatically."
 echo "     The natalie tools (memory_search, note_write, task_list, …) will appear"
 echo "     in the tool list."
 echo ""
 echo "  5. Run 'natalie sync' from the vault directory any time you add new notes."
-echo "     (It runs automatically as a Claude Code hook after every tool use.)"
+echo "     (It runs automatically as a post-tool-use hook after every tool call.)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
