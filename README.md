@@ -59,9 +59,9 @@ The dashboard layout requires three CSS snippets that `install.sh` already copie
 
 1. Go to **Settings → Appearance → CSS snippets**
 2. Toggle on **natalie-dashboard**, **MCL Multi Column**, and **MCL Wide Views**
-3. Press **Cmd+R** (Mac) / **Ctrl+R** (Windows) to reload Obsidian
 
 If the snippets are not listed, click the folder icon to refresh the snippets directory.
+If the multi-column layout still doesn't render, open the Command palette (Cmd+P / Ctrl+P) and run **Reload app without saving**.
 
 ### 3. Install the Local REST API plugin and copy the API key
 

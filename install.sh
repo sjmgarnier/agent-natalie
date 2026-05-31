@@ -23,6 +23,19 @@ if [[ -d "$VENV_DIR" ]]; then
         echo "Upgrading agent-natalie..."
         uv pip install --python "$VENV_DIR" --upgrade agent-natalie
         echo ""
+        read -ep "Re-initialize a vault with the new version? (blank to skip): " _VAULT_PATH
+        if [[ -n "$_VAULT_PATH" ]]; then
+            _VAULT_PATH="${_VAULT_PATH/#\~/$HOME}"
+            _VAULT_PATH="${_VAULT_PATH//\\/}"
+            _VAULT_PATH="$(cd "$_VAULT_PATH" 2>/dev/null && pwd || echo "$_VAULT_PATH")"
+            echo ""
+            echo "Available personas: natalie, donna, moneypenny, smithers, april, finch, gary, pam"
+            read -rp "Persona (default: natalie): " _PERSONA
+            _PERSONA="${_PERSONA:-natalie}"
+            echo ""
+            "$NATALIE" init "$_VAULT_PATH" --persona "$_PERSONA" --venv-path "$VENV_DIR"
+        fi
+        echo ""
         echo "Done. Run 'natalie sync --full' from your vault directory to rebuild the search index."
         exit 0
     fi
@@ -95,13 +108,16 @@ echo "     The Dashboard layout and CSS snippets are pre-configured."
 echo "     If the multi-column layout doesn't appear, go to:"
 echo "       Settings → Appearance → CSS snippets"
 echo "     and make sure natalie-dashboard, MCL Multi Column, and MCL Wide Views"
-echo "     are toggled on. Then reload Obsidian (Cmd+R)."
+echo "     are toggled on. If they aren't listed, click the folder icon to refresh."
 echo ""
 echo "  2. Install the Local REST API community plugin (recommended):"
-echo "       Settings → Community Plugins → turn off Restricted Mode → Browse"
+echo "       Settings → Community plugins → turn off Restricted Mode → Browse"
 echo "       Search 'Local REST API' → Install → Enable"
-echo "     This lets Natalie read/write notes through Obsidian so changes appear"
-echo "     immediately. Natalie works without it but falls back to direct file I/O."
+echo "     Then open Settings → Community plugins → Local REST API, copy the API Key,"
+echo "     and paste it into $VAULT_PATH/Natalie/config.toml:"
+echo "       [obsidian]"
+echo "       api_key = \"paste-your-key-here\""
+echo "     Natalie works without it but falls back to direct file I/O."
 echo ""
 echo "  3. Install the Dataview community plugin (required for the Dashboard):"
 echo "       Settings → Community Plugins → Browse"
