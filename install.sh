@@ -41,6 +41,8 @@ echo ""
 read -ep "Vault path (default: $HOME/Natalie): " VAULT_PATH
 VAULT_PATH="${VAULT_PATH:-$HOME/Natalie}"
 VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
+# Strip shell escape backslashes (read -e doesn't reliably remove them from readline input)
+VAULT_PATH="${VAULT_PATH//\\/}"
 # Resolve to absolute path so relative entries and symlinks work correctly
 VAULT_PATH="$(cd "$VAULT_PATH" 2>/dev/null && pwd || echo "$VAULT_PATH")"
 
