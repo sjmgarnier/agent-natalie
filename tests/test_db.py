@@ -22,8 +22,14 @@ def test_init_db_creates_fts_table(vault):
 def test_init_db_creates_all_tables(vault):
     conn = get_db(vault)
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    assert {"notes", "embeddings", "conventions"}.issubset(tables)
+    assert {"notes", "embeddings", "conventions", "onboarding"}.issubset(tables)
     assert "machines" not in tables
+
+
+def test_init_db_creates_onboarding_table(vault):
+    conn = get_db(vault)
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "onboarding" in tables
 
 
 def test_notes_fts_triggers_on_insert(vault):
