@@ -38,7 +38,7 @@ uv pip install --python "$VENV_DIR" agent-natalie
 
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
-read -rp "Vault path (default: $HOME/Natalie): " VAULT_PATH
+read -erp "Vault path (default: $HOME/Natalie): " VAULT_PATH
 VAULT_PATH="${VAULT_PATH:-$HOME/Natalie}"
 VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
 

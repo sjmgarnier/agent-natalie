@@ -63,7 +63,7 @@ The dashboard layout requires three CSS snippets that `install.sh` already copie
 
 If the snippets are not listed, click the folder icon to refresh the snippets directory.
 
-### 3. Install the Local REST API plugin
+### 3. Install the Local REST API plugin and copy the API key
 
 The [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin
 lets Natalie read and write notes through Obsidian rather than directly to disk.
@@ -71,10 +71,17 @@ This keeps Obsidian's cache in sync so changes appear immediately in the UI.
 
 1. **Settings → Community plugins → turn off Restricted Mode → Browse**
 2. Search **Local REST API** → **Install** → **Enable**
+3. Open **Settings → Community plugins → Local REST API**
+4. Copy the **API Key** shown there
+5. Paste it into `<vault>/Natalie/config.toml`:
 
-No further configuration is needed — the plugin starts a local HTTPS server on port 27123
-and Natalie detects it automatically. Natalie falls back to direct file I/O if the plugin
-is not installed or Obsidian is not running.
+```toml
+[obsidian]
+api_key = "paste-your-key-here"
+```
+
+Natalie falls back to direct file I/O if the plugin is not installed, Obsidian is not
+running, or no key is configured.
 
 ### 4. Install and configure Dataview
 

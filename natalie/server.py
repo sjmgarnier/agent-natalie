@@ -48,11 +48,12 @@ def _get_db() -> sqlite3.Connection:
     return cast(sqlite3.Connection, _db_local.conn)
 
 
-def _obsidian_read(vault: Path, rel_path: str) -> str | None:
+def _obsidian_read(vault: Path, rel_path: str, api_key: str = "") -> str | None:
     full = safe_join(vault, rel_path)  # raises ValueError if path escapes vault
     encoded = urllib.parse.quote(rel_path, safe="/")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:
-        r = httpx.get(f"http://127.0.0.1:27123/vault/{encoded}", timeout=2.0)
+        r = httpx.get(f"https://127.0.0.1:27123/vault/{encoded}", headers=headers, timeout=2.0, verify=False)  # nosec B501 — self-signed cert on localhost
         if r.status_code == 200:
             return r.text
     except httpx.RequestError:
@@ -60,14 +61,17 @@ def _obsidian_read(vault: Path, rel_path: str) -> str | None:
     return full.read_text(encoding="utf-8") if full.exists() else None
 
 
-def _obsidian_write(vault: Path, rel_path: str, content: str) -> None:
+def _obsidian_write(vault: Path, rel_path: str, content: str, api_key: str = "") -> None:
     full = safe_join(vault, rel_path)  # raises ValueError if path escapes vault
     encoded = urllib.parse.quote(rel_path, safe="/")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:
         r = httpx.put(
-            f"http://127.0.0.1:27123/vault/{encoded}",
+            f"https://127.0.0.1:27123/vault/{encoded}",
             content=content.encode(),
+            headers=headers,
             timeout=2.0,
+            verify=False,  # nosec B501 — self-signed cert on localhost
         )
         if r.status_code in (200, 204):
             return
@@ -190,7 +194,7 @@ def memory_store(
 def note_read(path: str) -> str | None:
     """Read a vault note by relative path. Returns content or None if not found."""
     vault = _get_vault()
-    return _obsidian_read(vault, path)
+    return _obsidian_read(vault, path, _get_config().obsidian.api_key)
 
 
 @mcp.tool()
@@ -201,7 +205,7 @@ def note_write(path: str, content: str) -> dict[str, Any]:
     vault = _get_vault()
     db = _get_db()
     full = safe_join(vault, path)
-    _obsidian_write(vault, path, content)
+    _obsidian_write(vault, path, content, _get_config().obsidian.api_key)
     # REST write may succeed without creating a local file; index_note requires stat()
     if not full.exists():
         full.parent.mkdir(parents=True, exist_ok=True)

@@ -47,7 +47,7 @@ def test_obsidian_read_returns_rest_response_on_200(vault: Path, monkeypatch: py
 
     assert result == "# Hello from REST"
     called_url = mock_get.call_args[0][0]
-    assert called_url == "http://127.0.0.1:27123/vault/notes/hello.md"
+    assert called_url == "https://127.0.0.1:27123/vault/notes/hello.md"
 
 
 def test_obsidian_read_url_encodes_spaces_in_path(vault: Path) -> None:
@@ -72,6 +72,30 @@ def test_obsidian_read_url_preserves_slashes(vault: Path) -> None:
 
     called_url = mock_get.call_args[0][0]
     assert "/vault/sub/dir/note.md" in called_url
+
+
+def test_obsidian_read_sends_auth_header_when_api_key_set(vault: Path) -> None:
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = "content"
+
+    with patch("natalie.server.httpx.get", return_value=mock_response) as mock_get:
+        srv._obsidian_read(vault, "note.md", api_key="my-secret-key")
+
+    headers = mock_get.call_args.kwargs.get("headers", {})
+    assert headers.get("Authorization") == "Bearer my-secret-key"
+
+
+def test_obsidian_read_sends_no_auth_header_when_api_key_empty(vault: Path) -> None:
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = "content"
+
+    with patch("natalie.server.httpx.get", return_value=mock_response) as mock_get:
+        srv._obsidian_read(vault, "note.md", api_key="")
+
+    headers = mock_get.call_args.kwargs.get("headers", {})
+    assert "Authorization" not in headers
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +147,7 @@ def test_obsidian_write_uses_rest_on_200(vault: Path) -> None:
         srv._obsidian_write(vault, "out.md", "new content")
 
     called_url = mock_put.call_args[0][0]
-    assert called_url == "http://127.0.0.1:27123/vault/out.md"
+    assert called_url == "https://127.0.0.1:27123/vault/out.md"
     assert not (vault / "out.md").exists()
 
 
@@ -146,6 +170,28 @@ def test_obsidian_write_url_encodes_path(vault: Path) -> None:
 
     called_url = mock_put.call_args[0][0]
     assert "my%20notes/a%20note.md" in called_url
+
+
+def test_obsidian_write_sends_auth_header_when_api_key_set(vault: Path) -> None:
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+
+    with patch("natalie.server.httpx.put", return_value=mock_response) as mock_put:
+        srv._obsidian_write(vault, "note.md", "content", api_key="my-secret-key")
+
+    headers = mock_put.call_args.kwargs.get("headers", {})
+    assert headers.get("Authorization") == "Bearer my-secret-key"
+
+
+def test_obsidian_write_sends_no_auth_header_when_api_key_empty(vault: Path) -> None:
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+
+    with patch("natalie.server.httpx.put", return_value=mock_response) as mock_put:
+        srv._obsidian_write(vault, "note.md", "content", api_key="")
+
+    headers = mock_put.call_args.kwargs.get("headers", {})
+    assert "Authorization" not in headers
 
 
 # ---------------------------------------------------------------------------

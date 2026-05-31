@@ -104,6 +104,9 @@ def config(
 
 
 _DEFAULT_CONFIG_TOML = """\
+[obsidian]
+api_key = ""   # paste the key from Settings → Community Plugins → Local REST API
+
 [persona]
 name = "{persona}"
 
