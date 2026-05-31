@@ -29,7 +29,7 @@ should work — see [Connecting your agent](#connecting-your-agent) below.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh)
 ```
 
 The script:
@@ -262,7 +262,7 @@ corruption. Keep one active session at a time.
 ## Upgrade
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh)
 ```
 
 The script detects an existing install and offers to upgrade in place.
@@ -272,5 +272,5 @@ The script detects an existing install and offers to upgrade in place.
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/uninstall.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/uninstall.sh)
 ```
