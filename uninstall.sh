@@ -13,6 +13,12 @@ if [[ -d "$HOME/.natalie" ]]; then
     echo "Removed $HOME/.natalie"
 fi
 
+# ── Remove natalie symlink ────────────────────────────────────────────────────
+if [[ -L "$HOME/.local/bin/natalie" ]]; then
+    rm "$HOME/.local/bin/natalie"
+    echo "Removed ~/.local/bin/natalie"
+fi
+
 # ── Remove host configs ───────────────────────────────────────────────────────
 read -rp "Vault path to remove host configs from (leave empty to skip): " VAULT_PATH
 VAULT_PATH="${VAULT_PATH/#\~/$HOME}"

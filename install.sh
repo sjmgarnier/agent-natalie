@@ -36,6 +36,9 @@ if [[ -d "$VENV_DIR" ]]; then
             "$NATALIE" init "$_VAULT_PATH" --persona "$_PERSONA" --venv-path "$VENV_DIR"
         fi
         echo ""
+        # Refresh symlink in case the binary path changed
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$VENV_DIR/bin/natalie" "$HOME/.local/bin/natalie"
         echo "Done. Run 'natalie sync --full' from your vault directory to rebuild the search index."
         exit 0
     fi
@@ -48,6 +51,17 @@ echo "Creating Python environment at $VENV_DIR..."
 mkdir -p "$HOME/.natalie"
 uv venv "$VENV_DIR"
 uv pip install --python "$VENV_DIR" agent-natalie
+
+# ── Add natalie to PATH ───────────────────────────────────────────────────────
+mkdir -p "$HOME/.local/bin"
+ln -sf "$VENV_DIR/bin/natalie" "$HOME/.local/bin/natalie"
+for _RC in "$HOME/.zshrc" "$HOME/.bashrc"; do
+    if [[ -f "$_RC" ]] && ! grep -q '\.local/bin' "$_RC"; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$_RC"
+        echo "Added ~/.local/bin to PATH in $_RC"
+    fi
+done
+export PATH="$HOME/.local/bin:$PATH"
 
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
@@ -132,8 +146,9 @@ echo "     Both read their config files and connect to natalie-server automatica
 echo "     The natalie tools (memory_search, note_write, task_list, …) will appear"
 echo "     in the tool list."
 echo ""
-echo "  5. Run 'natalie sync' from the vault directory any time you add new notes."
-echo "     (It runs automatically as a post-tool-use hook after every tool call.)"
+echo "  5. Run 'natalie sync' from any directory any time you add new notes."
+echo "     (It also runs automatically as a post-tool-use hook after every tool call.)"
+echo "     Note: open a new terminal tab to pick up the PATH update if needed."
 echo ""
 echo "  To add more vaults: re-run this script, or run 'natalie init <path>' directly."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

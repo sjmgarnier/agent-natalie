@@ -8,9 +8,11 @@ runner = CliRunner()
 
 
 def test_version_flag():
+    from importlib.metadata import version
+
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.1" in result.output
+    assert version("agent-natalie") in result.output
 
 
 def test_help():
