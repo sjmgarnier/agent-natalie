@@ -176,9 +176,8 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 | `task_list` | List open (or all) tasks across the vault |
 | `task_capture` | Add a task to a note |
 | `task_complete` | Mark a task done |
-| `document_file` | File a document to the documents cabinet |
-| `document_retrieve` | Retrieve a document by filename |
-| `document_list` | List all documents |
+| `document_file` | Register a vault file in the document index with a semantic description |
+| `document_list` | List or semantically search filed documents |
 | `contact_get` | Get a contact card by slug |
 | `contact_update` | Create or update a contact card |
 | `contact_list` | List all contact slugs |
