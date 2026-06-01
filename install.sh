@@ -23,17 +23,16 @@ if [[ -d "$VENV_DIR" ]]; then
         echo "Upgrading agent-natalie..."
         uv pip install --python "$VENV_DIR" --upgrade agent-natalie
         echo ""
-        read -ep "Re-initialize a vault with the new version? (blank to skip): " _VAULT_PATH
+        read -ep "Regenerate agent instructions for a vault? Enter vault path (blank to skip): " _VAULT_PATH
         if [[ -n "$_VAULT_PATH" ]]; then
             _VAULT_PATH="${_VAULT_PATH/#\~/$HOME}"
             _VAULT_PATH="${_VAULT_PATH//\\/}"
             _VAULT_PATH="$(cd "$_VAULT_PATH" 2>/dev/null && pwd || echo "$_VAULT_PATH")"
             echo ""
-            echo "Available personas: natalie, donna, moneypenny, smithers, april, finch, gary, pam"
-            read -rp "Persona (default: natalie): " _PERSONA
-            _PERSONA="${_PERSONA:-natalie}"
+            (cd "$_VAULT_PATH" && "$NATALIE" config --regen)
             echo ""
-            "$NATALIE" init "$_VAULT_PATH" --persona "$_PERSONA" --venv-path "$VENV_DIR"
+            echo "CLAUDE.md and AGENTS.md updated with the latest tool instructions."
+            echo "Repeat for each vault you want to update."
         fi
         echo ""
         # Refresh symlink in case the binary path changed
