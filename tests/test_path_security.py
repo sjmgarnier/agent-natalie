@@ -32,18 +32,11 @@ def test_complete_task_raises_on_traversal(vault):
         complete_task(vault, "../../etc/passwd", "some task")
 
 
-def test_file_document_raises_on_traversal(vault, config):
+def test_file_document_raises_on_traversal(vault, config, db):
     from natalie.features.documents import file_document
 
     with pytest.raises(ValueError):
-        file_document(vault, config, "../../../etc/evil.txt", "content")
-
-
-def test_retrieve_document_raises_on_traversal(vault, config):
-    from natalie.features.documents import retrieve_document
-
-    with pytest.raises(ValueError):
-        retrieve_document(vault, config, "../../etc/passwd")
+        file_document(vault, config, db, "../../../etc/evil.txt", "a description")
 
 
 def test_contact_path_raises_on_traversal(vault, config):

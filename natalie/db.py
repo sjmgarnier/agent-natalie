@@ -53,6 +53,45 @@ CREATE TABLE IF NOT EXISTS onboarding (
     id           INTEGER PRIMARY KEY CHECK (id = 1),
     completed_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS documents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rel_path    TEXT    UNIQUE NOT NULL,
+    sha256      TEXT,
+    description TEXT    NOT NULL,
+    project     TEXT,
+    doc_type    TEXT,
+    tags        TEXT,
+    filed_at    TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_embeddings (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id INTEGER UNIQUE REFERENCES documents(id) ON DELETE CASCADE,
+    vector BLOB    NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+    description,
+    content='documents',
+    content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS documents_fts_insert AFTER INSERT ON documents BEGIN
+    INSERT INTO documents_fts(rowid, description) VALUES (new.id, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS documents_fts_update AFTER UPDATE ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, description)
+        VALUES ('delete', old.id, old.description);
+    INSERT INTO documents_fts(rowid, description) VALUES (new.id, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS documents_fts_delete AFTER DELETE ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, description)
+        VALUES ('delete', old.id, old.description);
+END;
 """
 
 

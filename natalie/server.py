@@ -272,21 +272,49 @@ def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def document_file(filename: str, content: str) -> dict[str, Any]:
-    """Save content to the documents cabinet."""
-    return docs_mod.file_document(_get_vault(), _get_config(), filename, content)
+def document_file(
+    rel_path: str,
+    description: str,
+    project: str | None = None,
+    doc_type: str | None = None,
+    tags: list[str] | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Register an existing vault file in the document index with a semantic description."""
+    return docs_mod.file_document(
+        _get_vault(),
+        _get_config(),
+        _get_db(),
+        rel_path,
+        description,
+        project,
+        doc_type,
+        tags,
+        overwrite,
+    )
 
 
 @mcp.tool()
-def document_retrieve(filename: str) -> str | None:
-    """Retrieve a document by filename. Returns content or None."""
-    return docs_mod.retrieve_document(_get_vault(), _get_config(), filename)
-
-
-@mcp.tool()
-def document_list() -> list[str]:
-    """List all documents in the cabinet."""
-    return docs_mod.list_documents(_get_vault(), _get_config())
+def document_list(
+    query: str | None = None,
+    project: str | None = None,
+    doc_type: str | None = None,
+    tags: list[str] | None = None,
+    top_n: int = 10,
+    include_metadata: bool = True,
+) -> list[dict[str, Any]]:
+    """List or semantically search filed documents. Pass query for hybrid semantic search."""
+    return docs_mod.list_documents(
+        _get_vault(),
+        _get_config(),
+        _get_db(),
+        query,
+        project,
+        doc_type,
+        tags,
+        top_n,
+        include_metadata,
+    )
 
 
 @mcp.tool()

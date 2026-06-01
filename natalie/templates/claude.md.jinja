@@ -61,13 +61,12 @@ then call `task_complete` with those values.
 ## Notes
 
 Use `note_read` to read vault notes. Use `note_write` to create or update markdown notes — these are memory-searchable.
-Use `document_file` for non-markdown reference files (e.g. CSV, plain text, JSON); these are not memory-indexed.
 
 ## Documents and Contacts
 
-File reference material with `document_file`; retrieve it with `document_retrieve`.
-Use `document_list` to see what has been filed.
-Documents are not memory-indexed — `memory_search` will not find them.
+Use `document_file` to register an existing vault file in the document index. Always provide a thorough `description` — read the file if possible, infer from context, or ask the user. Include `project`, `doc_type`, and `tags` when relevant; they enable filtered retrieval later. The file must already exist in the vault at `rel_path`. If you get an error that the file is already filed, ask the user before calling again with `overwrite=True`. If the response contains a `warning` about a SHA match, tell the user — the file may be a moved or copied version of an existing record.
+
+Use `document_list` to find filed documents. Pass a natural-language `query` for hybrid semantic search (e.g. "NSF report for the army ant project last week"); omit it to list everything. Use `project`, `doc_type`, and `tags` to narrow the search space. Results include `rel_path` — use `note_read` or filesystem tools to access the actual file content. Documents are indexed by their description, not their content — `memory_search` will not find them.
 Maintain contact cards with `contact_update` and `contact_get`.
 Use `contact_list` to see all known contacts.
 When the user mentions a person by name or asks you to reach out, email, or schedule
