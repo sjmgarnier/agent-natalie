@@ -26,6 +26,8 @@ if [[ -d "$VENV_DIR" ]]; then
         read -ep "Regenerate agent instructions for a vault? Enter vault path (blank to skip): " _VAULT_PATH
         if [[ -n "$_VAULT_PATH" ]]; then
             _VAULT_PATH="${_VAULT_PATH/#\~/$HOME}"
+            _VAULT_PATH="${_VAULT_PATH#[\'\"]}" ; _VAULT_PATH="${_VAULT_PATH%[\'\"]}"
+            _VAULT_PATH="${_VAULT_PATH//\\ / }"
             _VAULT_PATH="${_VAULT_PATH//\\/}"
             _VAULT_PATH="$(cd "$_VAULT_PATH" 2>/dev/null && pwd || echo "$_VAULT_PATH")"
             echo ""
@@ -67,7 +69,9 @@ echo ""
 read -ep "Vault path (default: $HOME/Natalie): " VAULT_PATH
 VAULT_PATH="${VAULT_PATH:-$HOME/Natalie}"
 VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
-# Strip shell escape backslashes (read -e doesn't reliably remove them from readline input)
+# readline on macOS may wrap completions in quotes or escape spaces with backslashes
+VAULT_PATH="${VAULT_PATH#[\'\"]}" ; VAULT_PATH="${VAULT_PATH%[\'\"]}"
+VAULT_PATH="${VAULT_PATH//\\ / }"
 VAULT_PATH="${VAULT_PATH//\\/}"
 # Resolve to absolute path so relative entries and symlinks work correctly
 VAULT_PATH="$(cd "$VAULT_PATH" 2>/dev/null && pwd || echo "$VAULT_PATH")"
