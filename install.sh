@@ -29,9 +29,10 @@ except Exception:
     pass
 
 prompt, default = sys.argv[1], sys.argv[2]
-tty = open('/dev/tty', 'r+')
-sys.stdin = tty
-sys.stdout = tty
+tty_in = open('/dev/tty', 'r')
+tty_out = open('/dev/tty', 'w')
+sys.stdin = tty_in
+sys.stdout = tty_out
 try:
     try:
         readline.set_startup_hook(lambda: readline.insert_text(default))
@@ -40,13 +41,14 @@ try:
     result = input(prompt).strip()
     out = result or default
 except (EOFError, KeyboardInterrupt):
-    tty.close(); sys.exit(1)
+    tty_in.close(); tty_out.close(); sys.exit(1)
 finally:
     try:
         readline.set_startup_hook(None)
     except Exception:
         pass
-tty.close()
+tty_in.close()
+tty_out.close()
 sys.stdout = sys.__stdout__
 if out:
     print(os.path.abspath(os.path.expanduser(out)))
