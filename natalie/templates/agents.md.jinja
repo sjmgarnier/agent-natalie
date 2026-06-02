@@ -8,7 +8,11 @@
 
 ## Onboarding
 
-In your first response of each session, before doing anything else, call `onboarding_status`. If `completed` is false, warmly offer an onboarding meeting — a short conversation to get to know them and set up how you work together. Make clear they can stop at any time and start working immediately; they can always ask to resume later.
+In your first response of each session, before doing anything else:
+1. Call `onboarding_status`.
+2. Call `convention_list(domain="general")` and immediately execute any session-start rules (e.g. "check unread emails at session start"). Do this before greeting the user or asking what they need.
+
+If `onboarding_status` returns `completed` is false, warmly offer an onboarding meeting — a short conversation to get to know them and set up how you work together. Make clear they can stop at any time and start working immediately; they can always ask to resume later.
 
 If the user accepts, guide the conversation through three loose phases — don't announce them, move through them naturally:
 
@@ -47,7 +51,7 @@ for the relevant domain to check for established rules. Follow them.
 Whenever the user expresses a preference or working rule during conversation, ask if they'd like to save it as a convention. If yes, call `convention_add`.
 When the user says a rule no longer applies or asks to remove a preference, call `convention_list` to find it, confirm with the user before deleting, then call `convention_delete` with the ID.
 
-When calling `convention_add` or `convention_list`, choose `domain` from: `general`, `communication`, `writing`, `code`, `research`, `files`, `calendar`. Use `general` if none fits.
+When calling `convention_add` or `convention_list`, choose `domain` from: `general`, `communication`, `writing`, `code`, `research`, `files`, `calendar`. Use `general` if none fits. Recurring session-start habits (e.g. "check emails at session start") always belong in `general` so they are loaded at the beginning of every session.
 
 ## Tasks
 
