@@ -4,6 +4,55 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$HOME/.natalie/.venv"
 
+# ── Path prompt with space-aware tab completion ───────────────────────────────
+# bash 3.2 (macOS system shell) can't complete through backslash-escaped spaces.
+# Python's readline lets us remove space from word-break characters so completion
+# works through directory names that contain spaces. I/O goes via /dev/tty so
+# the prompt appears interactively; only the resolved path is printed to stdout.
+_read_path() {
+    python3 - "$1" "$2" <<'PYEOF'
+import sys, os, glob
+try:
+    import readline
+    def _complete(text, state):
+        exp = os.path.expanduser(text)
+        hits = sorted(glob.glob(exp + '*'))
+        hits = [h + ('/' if os.path.isdir(h) else '') for h in hits]
+        return hits[state] if state < len(hits) else None
+    readline.set_completer(_complete)
+    readline.set_completer_delims('\t\n')  # space is NOT a word break
+    if readline.__doc__ and 'libedit' in readline.__doc__:
+        readline.parse_and_bind('bind ^I rl_complete')  # macOS libedit
+    else:
+        readline.parse_and_bind('tab: complete')        # GNU readline
+except Exception:
+    pass
+
+prompt, default = sys.argv[1], sys.argv[2]
+tty = open('/dev/tty', 'r+')
+sys.stdin = tty
+sys.stdout = tty
+try:
+    try:
+        readline.set_startup_hook(lambda: readline.insert_text(default))
+    except Exception:
+        pass
+    result = input(prompt).strip()
+    out = result or default
+except (EOFError, KeyboardInterrupt):
+    tty.close(); sys.exit(1)
+finally:
+    try:
+        readline.set_startup_hook(None)
+    except Exception:
+        pass
+tty.close()
+sys.stdout = sys.__stdout__
+if out:
+    print(os.path.abspath(os.path.expanduser(out)))
+PYEOF
+}
+
 # ── uv ────────────────────────────────────────────────────────────────────────
 if ! command -v uv &>/dev/null; then
     echo "Installing uv..."
@@ -23,13 +72,8 @@ if [[ -d "$VENV_DIR" ]]; then
         echo "Upgrading agent-natalie..."
         uv pip install --python "$VENV_DIR" --upgrade agent-natalie
         echo ""
-        read -ep "Regenerate agent instructions for a vault? Enter vault path (blank to skip): " _VAULT_PATH
+        _VAULT_PATH="$(_read_path "Vault path to update (blank to skip): " "")"
         if [[ -n "$_VAULT_PATH" ]]; then
-            _VAULT_PATH="${_VAULT_PATH/#\~/$HOME}"
-            _VAULT_PATH="${_VAULT_PATH#[\'\"]}" ; _VAULT_PATH="${_VAULT_PATH%[\'\"]}"
-            _VAULT_PATH="${_VAULT_PATH//\\ / }"
-            _VAULT_PATH="${_VAULT_PATH//\\/}"
-            _VAULT_PATH="$(cd "$_VAULT_PATH" 2>/dev/null && pwd || echo "$_VAULT_PATH")"
             echo ""
             (cd "$_VAULT_PATH" && "$NATALIE" config --regen)
             echo ""
@@ -66,15 +110,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # ── Prompt for vault path ─────────────────────────────────────────────────────
 echo ""
-read -ep "Vault path (default: $HOME/Natalie): " VAULT_PATH
-VAULT_PATH="${VAULT_PATH:-$HOME/Natalie}"
-VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
-# readline on macOS may wrap completions in quotes or escape spaces with backslashes
-VAULT_PATH="${VAULT_PATH#[\'\"]}" ; VAULT_PATH="${VAULT_PATH%[\'\"]}"
-VAULT_PATH="${VAULT_PATH//\\ / }"
-VAULT_PATH="${VAULT_PATH//\\/}"
-# Resolve to absolute path so relative entries and symlinks work correctly
-VAULT_PATH="$(cd "$VAULT_PATH" 2>/dev/null && pwd || echo "$VAULT_PATH")"
+VAULT_PATH="$(_read_path "Vault path (default: $HOME/Natalie): " "$HOME/Natalie")"
 
 # ── Prompt for persona ────────────────────────────────────────────────────────
 echo ""
