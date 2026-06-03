@@ -1,8 +1,16 @@
+import sqlite3
+from pathlib import Path
+from typing import Any
+
+import numpy as np
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from natalie.features.contacts import get_contact, list_contacts, update_contact
+from natalie.features import memory as mem_mod
+from natalie.features.contacts import get_contact, list_contacts, search_contacts, update_contact
+from natalie.features.memory import embed_notes, index_note
+from tests.helpers import write_note
 
 
 def test_update_contact_creates_card(vault, config):
@@ -76,3 +84,68 @@ def test_update_contact_rejects_traversal_in_directory(vault, config):
 def test_update_contact_rejects_empty_slug(vault, config, slug):
     with pytest.raises(ValueError, match="empty"):
         update_contact(vault, config, slug, {"name": "Test"})
+
+
+# ── search_contacts ───────────────────────────────────────────────────────────
+
+
+def test_search_contacts_keyword_match(vault: Path, db: sqlite3.Connection, config: Any) -> None:
+    update_contact(vault, config, "alice", {"name": "Alice Engineer", "company": "Acme Corp"})
+    index_note(db, vault, vault / config.contacts.directory / "alice.md")
+    results = search_contacts(db, vault, config, "Alice Engineer")
+    assert len(results) >= 1
+    assert any(r["path"].endswith("alice.md") for r in results)
+
+
+def test_search_contacts_no_match_returns_empty(vault: Path, db: sqlite3.Connection, config: Any) -> None:
+    update_contact(vault, config, "bob", {"name": "Bob Jones"})
+    index_note(db, vault, vault / config.contacts.directory / "bob.md")
+    results = search_contacts(db, vault, config, "xyzzy")
+    assert results == []
+
+
+def test_search_contacts_result_has_source_field(vault: Path, db: sqlite3.Connection, config: Any) -> None:
+    update_contact(vault, config, "dave", {"name": "Dave Manager"})
+    index_note(db, vault, vault / config.contacts.directory / "dave.md")
+    results = search_contacts(db, vault, config, "Dave Manager")
+    assert results[0]["source"] in ("keyword", "semantic", "hybrid")
+
+
+def test_search_contacts_path_filter_excludes_non_contacts(
+    vault: Path, db: sqlite3.Connection, config: Any
+) -> None:
+    write_note(vault, "Notes/alice-meeting.md", "# Alice Meeting\nAlice is a great engineer")
+    index_note(db, vault, vault / "Notes" / "alice-meeting.md")
+    update_contact(vault, config, "alice", {"name": "Alice Engineer"})
+    index_note(db, vault, vault / config.contacts.directory / "alice.md")
+    results = search_contacts(db, vault, config, "Alice Engineer")
+    assert all(config.contacts.directory in r["path"] for r in results)
+
+
+def test_search_contacts_semantic(
+    vault: Path, db: sqlite3.Connection, config: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeModel:
+        def embed(self, texts: list[str]) -> Any:
+            rng = np.random.default_rng(42)
+            for _ in texts:
+                yield rng.random(384).astype(np.float32)
+
+    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
+    update_contact(vault, config, "carol", {"name": "Carol Designer", "content": "UX expert"})
+    index_note(db, vault, vault / config.contacts.directory / "carol.md")
+    embed_notes(db)
+    results = search_contacts(db, vault, config, "UX design", model_name="BAAI/bge-small-en-v1.5")
+    assert isinstance(results, list)
+    if results:
+        assert "source" in results[0]
+
+
+def test_search_contacts_empty_query_raises(vault: Path, db: sqlite3.Connection, config: Any) -> None:
+    with pytest.raises(ValueError, match="query"):
+        search_contacts(db, vault, config, "")
+
+
+def test_search_contacts_whitespace_query_raises(vault: Path, db: sqlite3.Connection, config: Any) -> None:
+    with pytest.raises(ValueError, match="query"):
+        search_contacts(db, vault, config, "   ")
