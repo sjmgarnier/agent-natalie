@@ -14,6 +14,25 @@ fi
 
 NATALIE="$VENV_DIR/bin/natalie"
 
+# ── Skill installer ───────────────────────────────────────────────────────────
+_install_skills() {
+    local vault_path="$1"
+    local skills_src
+    skills_src="$("$VENV_DIR/bin/python" -c \
+        "import natalie, pathlib; print(pathlib.Path(natalie.__file__).parent / 'skills')")"
+    if [[ ! -d "$skills_src" ]]; then
+        echo "  No skills directory found in package; skipping."
+        return
+    fi
+    mkdir -p "$vault_path/.claude/skills"
+    for skill_dir in "$skills_src"/*/; do
+        [[ -d "$skill_dir" ]] || continue
+        local skill_name="natalie-$(basename "$skill_dir")"
+        cp -r "$skill_dir" "$vault_path/.claude/skills/$skill_name"
+        echo "  Installed: $skill_name"
+    done
+}
+
 # ── Update detection ──────────────────────────────────────────────────────────
 if [[ -d "$VENV_DIR" ]]; then
     echo "Existing Natalie install found at $VENV_DIR."
@@ -33,6 +52,19 @@ if [[ -d "$VENV_DIR" ]]; then
             echo ""
             echo "CLAUDE.md and AGENTS.md updated with the latest tool instructions."
             echo "Repeat for each vault you want to update."
+        fi
+        echo ""
+        read -ep "Install/update companion skills? Enter vault path (blank to skip): " _SKILLS_PATH
+        if [[ -z "$_SKILLS_PATH" && -n "$_VAULT_PATH" ]]; then
+            _SKILLS_PATH="$_VAULT_PATH"
+        fi
+        if [[ -n "$_SKILLS_PATH" ]]; then
+            _SKILLS_PATH="${_SKILLS_PATH/#\~/$HOME}"
+            _SKILLS_PATH="${_SKILLS_PATH//\\/}"
+            _SKILLS_PATH="$(cd "$_SKILLS_PATH" 2>/dev/null && pwd || echo "$_SKILLS_PATH")"
+            echo ""
+            _install_skills "$_SKILLS_PATH"
+            echo "  Skills installed. Repeat for each vault you want to update."
         fi
         echo ""
         # Refresh symlink in case the binary path changed
@@ -97,6 +129,14 @@ fi
 echo ""
 echo "Initializing vault at $VAULT_PATH..."
 "$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR"
+
+echo ""
+read -rp "Install companion Claude Code skills into this vault? [Y/n] " _INSTALL_SKILLS
+_INSTALL_SKILLS="${_INSTALL_SKILLS:-Y}"
+if [[ "$_INSTALL_SKILLS" =~ ^[Yy]$ ]]; then
+    echo ""
+    _install_skills "$VAULT_PATH"
+fi
 
 # ── Build initial index ───────────────────────────────────────────────────────
 echo ""
