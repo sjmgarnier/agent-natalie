@@ -332,3 +332,27 @@ def test_get_db_returns_thread_local_connections(vault: Path, monkeypatch: pytes
     t2.join()
 
     assert connections["t1"] != connections["t2"], "Each thread must receive its own connection object"
+
+
+def test_convention_update_tool_delegates_to_mem(monkeypatch: pytest.MonkeyPatch) -> None:
+    with (
+        patch("natalie.server._get_db", return_value=MagicMock()),
+        patch("natalie.server.mem.convention_update", return_value=True) as mock_fn,
+    ):
+        result = srv.convention_update(1, rule="new rule")
+    assert result is True
+    mock_fn.assert_called_once()
+
+
+def test_contact_search_tool_delegates_to_contacts_mod(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_results = [
+        {"path": "People/alice.md", "title": "Alice", "score": 0.9, "source": "keyword", "excerpt": "Alice"}
+    ]
+    with (
+        patch("natalie.server._get_db", return_value=MagicMock()),
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_config", return_value=MagicMock()),
+        patch("natalie.server.contacts_mod.search_contacts", return_value=mock_results),
+    ):
+        result = srv.contact_search("Alice")
+    assert result == mock_results

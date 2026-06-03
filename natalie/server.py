@@ -236,6 +236,17 @@ def convention_delete(convention_id: int) -> dict[str, Any]:
 
 
 @mcp.tool()
+def convention_update(
+    id: int,
+    domain: str | None = None,
+    rule: str | None = None,
+    source: str | None = None,
+) -> bool:
+    """Edit a convention in place. Supply only the fields to change. Returns True if found."""
+    return mem.convention_update(_get_db(), id, domain=domain, rule=rule, source=source)
+
+
+@mcp.tool()
 def onboarding_status() -> dict[str, Any]:
     """Return whether the onboarding meeting has been completed."""
     return onboarding_mod.get_onboarding_status(_get_db())
@@ -333,6 +344,15 @@ def contact_update(slug: str, fields: dict[str, Any]) -> dict[str, Any]:
 def contact_list() -> list[str]:
     """List all contact slugs."""
     return contacts_mod.list_contacts(_get_vault(), _get_config())
+
+
+@mcp.tool()
+def contact_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Search contacts by name, company, email, tags, or body text. Hybrid keyword + semantic."""
+    config = _get_config()
+    return contacts_mod.search_contacts(
+        _get_db(), _get_vault(), config, query, limit=limit, model_name=config.memory.embedding_model
+    )
 
 
 def main() -> None:
