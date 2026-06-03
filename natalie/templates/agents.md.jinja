@@ -50,6 +50,7 @@ for the relevant domain to check for established rules. Follow them.
 
 Whenever the user expresses a preference or working rule during conversation, ask if they'd like to save it as a convention. If yes, call `convention_add`.
 When the user says a rule no longer applies or asks to remove a preference, call `convention_list` to find it, confirm with the user before deleting, then call `convention_delete` with the ID.
+When the user wants to reword or adjust an existing convention, use `convention_update` with the ID and only the fields to change. Prefer this over delete + re-add.
 
 When calling `convention_add` or `convention_list`, choose `domain` from: `general`, `communication`, `writing`, `code`, `research`, `files`, `calendar`. Use `general` if none fits. Recurring session-start habits (e.g. "check emails at session start") always belong in `general` so they are loaded at the beginning of every session.
 
@@ -73,6 +74,7 @@ Use `document_file` to register an existing vault file in the document index. Al
 Use `document_list` to find filed documents. Pass a natural-language `query` for hybrid semantic search (e.g. "NSF report for the army ant project last week"); omit it to list everything. Use `project`, `doc_type`, and `tags` to narrow the search space. Results include `rel_path` — use `note_read` or filesystem tools to access the actual file content. Documents are indexed by their description, not their content — `memory_search` will not find them.
 Maintain contact cards with `contact_update` and `contact_get`.
 Use `contact_list` to see all known contacts.
+When the user mentions a person by name but the exact slug is unknown, use `contact_search` with natural language. Prefer `contact_get` when the slug is already known (cheaper).
 When the user mentions a person by name or asks you to reach out, email, or schedule
 with someone, call `contact_get` first to check for a known card.
 {% if preferred_skills or denied_skills %}
