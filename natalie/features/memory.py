@@ -260,3 +260,29 @@ def convention_delete(db: sqlite3.Connection, convention_id: int) -> bool:
     cursor = db.execute("DELETE FROM conventions WHERE id = ?", (convention_id,))
     db.commit()
     return cursor.rowcount > 0
+
+
+def convention_update(
+    db: sqlite3.Connection,
+    convention_id: int,
+    domain: str | None = None,
+    rule: str | None = None,
+    source: str | None = None,
+) -> bool:
+    """Edit an existing convention in place. At least one field required. Returns True if found."""
+    if domain is None and rule is None and source is None:
+        raise ValueError("at least one of domain, rule, or source must be provided")
+    if domain is not None and not domain.strip():
+        raise ValueError("domain must not be empty")
+    if rule is not None and not rule.strip():
+        raise ValueError("rule must not be empty")
+    if source is not None and source not in _VALID_SOURCES:
+        raise ValueError(f"Invalid source {source!r}: must be one of {sorted(_VALID_SOURCES)}")
+    cursor = db.execute(
+        "UPDATE conventions"
+        " SET domain = COALESCE(?, domain), rule = COALESCE(?, rule), source = COALESCE(?, source)"
+        " WHERE id = ?",
+        (domain, rule, source, convention_id),
+    )
+    db.commit()
+    return cursor.rowcount > 0

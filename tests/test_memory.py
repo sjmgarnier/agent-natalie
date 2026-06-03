@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import threading
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from natalie.features.memory import (
     convention_add,
     convention_delete,
     convention_list,
+    convention_update,
     embed_notes,
     get_notes,
     index_note,
@@ -743,3 +745,63 @@ def test_embed_notes_no_crash_when_embedding_inserted_concurrently(vault, db, mo
     # Without INSERT OR IGNORE this raises IntegrityError; with it, silently skips
     result = embed_notes(db)
     assert result >= 0
+
+
+# ── convention_update ─────────────────────────────────────────────────────────
+
+
+def test_convention_update_rule_only(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    assert convention_update(db, cid, rule="use camelCase") is True
+    rows = convention_list(db, "code")
+    assert rows[0]["rule"] == "use camelCase"
+    assert rows[0]["domain"] == "code"
+
+
+def test_convention_update_domain_only(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    assert convention_update(db, cid, domain="writing") is True
+    assert convention_list(db, "writing")[0]["rule"] == "use snake_case"
+    assert convention_list(db, "code") == []
+
+
+def test_convention_update_source_only(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    assert convention_update(db, cid, source="observed") is True
+    assert convention_list(db, "code")[0]["source"] == "observed"
+
+
+def test_convention_update_all_fields(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    assert convention_update(db, cid, domain="writing", rule="use active voice", source="observed") is True
+    rows = convention_list(db, "writing")
+    assert rows[0]["rule"] == "use active voice"
+    assert rows[0]["source"] == "observed"
+
+
+def test_convention_update_returns_false_for_missing_id(db: sqlite3.Connection) -> None:
+    assert convention_update(db, 9999, rule="any rule") is False
+
+
+def test_convention_update_raises_if_no_fields(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    with pytest.raises(ValueError, match="at least one"):
+        convention_update(db, cid)
+
+
+def test_convention_update_raises_on_empty_rule(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    with pytest.raises(ValueError, match="rule"):
+        convention_update(db, cid, rule="   ")
+
+
+def test_convention_update_raises_on_empty_domain(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    with pytest.raises(ValueError, match="domain"):
+        convention_update(db, cid, domain="")
+
+
+def test_convention_update_raises_on_invalid_source(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    with pytest.raises(ValueError, match="source"):
+        convention_update(db, cid, source="bad-value")
