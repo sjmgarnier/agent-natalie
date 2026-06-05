@@ -11,11 +11,6 @@ def _filter(cls: type[Any], data: dict[str, Any]) -> dict[str, Any]:
 
 
 @dataclass
-class ObsidianConfig:
-    api_key: str = ""
-
-
-@dataclass
 class PersonaConfig:
     name: str = "natalie"
 
@@ -55,7 +50,6 @@ class TasksConfig:
 
 @dataclass
 class NatalieConfig:
-    obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     persona: PersonaConfig = field(default_factory=PersonaConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
@@ -72,8 +66,6 @@ def load_config(vault: Path) -> NatalieConfig:
         return cfg
     with open(config_path, "rb") as f:
         data = tomllib.load(f)
-    if "obsidian" in data:
-        cfg.obsidian = ObsidianConfig(**_filter(ObsidianConfig, data["obsidian"]))
     if "persona" in data:
         cfg.persona = PersonaConfig(**_filter(PersonaConfig, data["persona"]))
     if "memory" in data:
