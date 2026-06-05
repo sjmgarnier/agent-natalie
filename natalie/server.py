@@ -177,6 +177,7 @@ def note_write(path: str, content: str) -> dict[str, Any]:
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_text(content, encoding="utf-8")
     mem.index_note(db, vault, full)
+    tasks_mod.index_tasks(db, vault, full)
     return {"written": True, "path": path}
 
 
