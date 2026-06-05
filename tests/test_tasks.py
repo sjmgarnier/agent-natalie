@@ -1,6 +1,8 @@
+import datetime
+
 import pytest
 
-from natalie.features.tasks import capture_task, complete_task, discover_tasks
+from natalie.features.tasks import _parse_task_text, capture_task, complete_task, discover_tasks
 from tests.helpers import write_note
 
 
@@ -47,7 +49,8 @@ def test_capture_task_creates_file_if_missing(vault):
 def test_complete_task_marks_checkbox_done(vault):
     note = write_note(vault, "todo.md", "- [ ] Finish the thing\n")
     result = complete_task(vault, "todo.md", "Finish the thing")
-    assert result is True
+    assert result["completed"] is True
+    assert result["completed_date"] is not None
     content = note.read_text()
     assert "- [x] Finish the thing" in content
 
@@ -55,7 +58,8 @@ def test_complete_task_marks_checkbox_done(vault):
 def test_complete_task_returns_false_if_not_found(vault):
     write_note(vault, "empty.md", "- [ ] Something else\n")
     result = complete_task(vault, "empty.md", "Nonexistent task")
-    assert result is False
+    assert result["completed"] is False
+    assert result["completed_date"] is None
 
 
 def test_discover_tasks_recognises_uppercase_X(vault):
@@ -89,7 +93,7 @@ def test_complete_task_handles_trailing_whitespace(vault):
     tasks = discover_tasks(vault)
     assert tasks[0]["text"] == "Buy groceries"
     result = complete_task(vault, "tasks.md", "Buy groceries")
-    assert result is True
+    assert result["completed"] is True
     assert "[x]" in note.read_text()
 
 
@@ -133,3 +137,198 @@ def test_capture_task_rejects_empty_task_text(vault):
 def test_capture_task_rejects_whitespace_task_text(vault):
     with pytest.raises(ValueError, match="task_text"):
         capture_task(vault, "Note.md", "   ")
+
+
+# --- _parse_task_text ---
+
+
+def test_parse_task_text_plain_title():
+    result = _parse_task_text("Write report")
+    assert result == {"text": "Write report", "due_date": None, "priority": None, "recurrence": None}
+
+
+def test_parse_task_text_due_date():
+    result = _parse_task_text("Write report 📅 2026-06-10")
+    assert result["text"] == "Write report"
+    assert result["due_date"] == "2026-06-10"
+
+
+def test_parse_task_text_priority_all_levels():
+    cases = [
+        ("Buy milk 🔺", "highest"),
+        ("Buy milk ⏫", "high"),
+        ("Buy milk 🔼", "medium"),
+        ("Buy milk 🔽", "low"),
+        ("Buy milk ⏬", "lowest"),
+    ]
+    for raw, expected in cases:
+        result = _parse_task_text(raw)
+        assert result["text"] == "Buy milk", f"failed for {raw}"
+        assert result["priority"] == expected, f"failed for {raw}"
+
+
+def test_parse_task_text_recurrence():
+    result = _parse_task_text("Water plants 🔁 every week")
+    assert result["text"] == "Water plants"
+    assert result["recurrence"] == "every week"
+
+
+def test_parse_task_text_all_fields():
+    result = _parse_task_text("Team standup ⏫ 🔁 every day 📅 2026-06-05")
+    assert result["text"] == "Team standup"
+    assert result["priority"] == "high"
+    assert result["recurrence"] == "every day"
+    assert result["due_date"] == "2026-06-05"
+
+
+def test_parse_task_text_order_independent():
+    result = _parse_task_text("Review PR 📅 2026-06-10 🔼")
+    assert result["text"] == "Review PR"
+    assert result["due_date"] == "2026-06-10"
+    assert result["priority"] == "medium"
+
+
+# --- discover_tasks new fields ---
+
+
+def test_discover_tasks_parses_due_date(vault):
+    write_note(vault, "tasks.md", "- [ ] File tax return 📅 2026-06-10\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["due_date"] == "2026-06-10"
+    assert tasks[0]["text"] == "File tax return"
+
+
+def test_discover_tasks_parses_priority(vault):
+    write_note(vault, "tasks.md", "- [ ] Urgent thing ⏫\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["priority"] == "high"
+    assert tasks[0]["text"] == "Urgent thing"
+
+
+def test_discover_tasks_parses_recurrence(vault):
+    write_note(vault, "tasks.md", "- [ ] Water plants 🔁 every week\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["recurrence"] == "every week"
+
+
+def test_discover_tasks_overdue_true(vault):
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    write_note(vault, "tasks.md", f"- [ ] Late task 📅 {yesterday}\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["overdue"] is True
+
+
+def test_discover_tasks_overdue_false_future(vault):
+    tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+    write_note(vault, "tasks.md", f"- [ ] Future task 📅 {tomorrow}\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["overdue"] is False
+
+
+def test_discover_tasks_overdue_false_no_date(vault):
+    write_note(vault, "tasks.md", "- [ ] No due date\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["overdue"] is False
+
+
+def test_discover_tasks_today_param(vault):
+    write_note(vault, "tasks.md", "- [ ] Task 📅 2026-01-01\n")
+    tasks = discover_tasks(vault, today=datetime.date(2025, 12, 31))
+    assert tasks[0]["overdue"] is False
+    tasks2 = discover_tasks(vault, today=datetime.date(2026, 1, 2))
+    assert tasks2[0]["overdue"] is True
+
+
+def test_discover_tasks_plain_task_has_none_fields(vault):
+    write_note(vault, "tasks.md", "- [ ] Plain task\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["due_date"] is None
+    assert tasks[0]["priority"] is None
+    assert tasks[0]["recurrence"] is None
+    assert tasks[0]["overdue"] is False
+
+
+# --- capture_task with metadata ---
+
+
+def test_capture_task_with_due_date(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "File taxes", due_date="2026-06-30")
+    assert "- [ ] File taxes 📅 2026-06-30" in note.read_text()
+
+
+def test_capture_task_with_priority(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Urgent fix", priority="highest")
+    assert "- [ ] Urgent fix 🔺" in note.read_text()
+
+
+def test_capture_task_with_recurrence(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Water plants", recurrence="every week")
+    assert "- [ ] Water plants 🔁 every week" in note.read_text()
+
+
+def test_capture_task_with_all_metadata(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Standup", due_date="2026-06-05", priority="high", recurrence="every day")
+    assert "- [ ] Standup ⏫ 🔁 every day 📅 2026-06-05" in note.read_text()
+
+
+def test_capture_task_round_trips_metadata(vault):
+    write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Review PR", due_date="2026-07-01", priority="medium")
+    tasks = discover_tasks(vault)
+    t = next(t for t in tasks if t["text"] == "Review PR")
+    assert t["due_date"] == "2026-07-01"
+    assert t["priority"] == "medium"
+
+
+def test_capture_task_returns_metadata_fields(vault):
+    write_note(vault, "tasks.md", "")
+    result = capture_task(vault, "tasks.md", "Buy milk", due_date="2026-06-10", priority="low")
+    assert result["due_date"] == "2026-06-10"
+    assert result["priority"] == "low"
+    assert result["recurrence"] is None
+
+
+def test_capture_task_rejects_invalid_priority(vault):
+    with pytest.raises(ValueError, match="priority"):
+        capture_task(vault, "tasks.md", "Do thing", priority="urgent")
+
+
+def test_capture_task_rejects_invalid_due_date(vault):
+    with pytest.raises(ValueError, match="due_date"):
+        capture_task(vault, "tasks.md", "Do thing", due_date="June 10")
+
+
+# --- complete_task with completion date ---
+
+
+def test_complete_task_appends_completion_date(vault):
+    write_note(vault, "tasks.md", "- [ ] Buy groceries\n")
+    today = datetime.date(2026, 6, 4)
+    result = complete_task(vault, "tasks.md", "Buy groceries", today=today)
+    assert result["completed"] is True
+    assert result["completed_date"] == "2026-06-04"
+    assert "- [x] Buy groceries ✅ 2026-06-04" in (vault / "tasks.md").read_text()
+
+
+def test_complete_task_preserves_existing_metadata(vault):
+    write_note(vault, "tasks.md", "- [ ] File taxes ⏫ 📅 2026-06-30\n")
+    today = datetime.date(2026, 6, 4)
+    result = complete_task(vault, "tasks.md", "File taxes", today=today)
+    assert result["completed"] is True
+    assert "- [x] File taxes ⏫ 📅 2026-06-30 ✅ 2026-06-04" in (vault / "tasks.md").read_text()
+
+
+def test_complete_task_clean_title_matches_metadata_line(vault):
+    write_note(vault, "tasks.md", "- [ ] Water plants 🔁 every week 📅 2026-06-10\n")
+    result = complete_task(vault, "tasks.md", "Water plants")
+    assert result["completed"] is True
+
+
+def test_complete_task_does_not_match_partial_title(vault):
+    write_note(vault, "tasks.md", "- [ ] Buy milk\n")
+    result = complete_task(vault, "tasks.md", "Buy")
+    assert result["completed"] is False
