@@ -96,7 +96,16 @@ live queries. Install it from the community plugin browser:
 
 Without Dataview the dashboard will show raw code blocks instead of rendered tables and task lists.
 
-### 5. Open the Dashboard
+### 5. Install the Tasks plugin
+
+The [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin enables rich task metadata — due dates, priorities, and recurrence rules — that Natalie can read and write via `task_capture` and `task_complete`.
+
+1. **Settings → Community plugins → Browse**
+2. Search **Tasks** → **Install** → **Enable**
+
+Without the Tasks plugin, Natalie falls back to plain checkboxes and the metadata fields (`due`, `priority`, `recurrence`) will not be available.
+
+### 7. Open the Dashboard
 
 Click **Dashboard.md** in the vault root. Switch to Reading view if it doesn't render automatically.
 
