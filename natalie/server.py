@@ -19,6 +19,7 @@ from .features import documents as docs_mod
 from .features import memory as mem
 from .features import onboarding as onboarding_mod
 from .features import tasks as tasks_mod
+from .features.watcher import start_watcher
 from .utils import safe_join
 from .vault import require_vault
 
@@ -382,6 +383,8 @@ def main() -> None:
     _config = load_config(_vault)
     init_db(_vault)  # create schema; connections are opened per-thread via _get_db()
     _db_vault = _vault
+    tasks_mod.sync_tasks(get_db(_db_vault), _vault)
+    start_watcher(_vault, _db_vault)
     mcp.run()
 
 
