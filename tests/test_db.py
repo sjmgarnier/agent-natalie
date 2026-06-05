@@ -64,6 +64,24 @@ def test_get_db_sets_busy_timeout(tmp_path):
     conn.close()
 
 
+def test_init_db_creates_tasks_table(vault):
+    conn = get_db(vault)
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "tasks" in tables
+
+
+def test_tasks_table_has_expected_columns(vault):
+    conn = get_db(vault)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+    assert cols == {"id", "path", "line", "text", "done", "due_date", "priority", "recurrence"}
+
+
+def test_tasks_path_index_exists(vault):
+    conn = get_db(vault)
+    rows = conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
+    assert "tasks_path_idx" in {r[0] for r in rows}
+
+
 def test_get_db_connection_usable_from_non_creating_thread(tmp_path):
     """C3: connections must work from any thread — FastMCP dispatches tool handlers to a thread pool."""
     import threading

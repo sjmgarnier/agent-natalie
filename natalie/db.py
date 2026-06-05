@@ -92,6 +92,19 @@ CREATE TRIGGER IF NOT EXISTS documents_fts_delete AFTER DELETE ON documents BEGI
     INSERT INTO documents_fts(documents_fts, rowid, description)
         VALUES ('delete', old.id, old.description);
 END;
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    path        TEXT    NOT NULL,
+    line        INTEGER NOT NULL,
+    text        TEXT    NOT NULL,
+    done        INTEGER NOT NULL DEFAULT 0,
+    due_date    TEXT,
+    priority    TEXT,
+    recurrence  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS tasks_path_idx ON tasks(path);
 """
 
 
