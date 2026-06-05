@@ -1,8 +1,10 @@
-# agent-natalie
+# agent-natalie — Personal Assistant MCP Server for Obsidian
 
-A portable personal assistant MCP server for AI coding agents.
-Natalie lives in your Obsidian vault and is only active when your agent
-is working from that directory.
+[![PyPI](https://img.shields.io/pypi/v/agent-natalie)](https://pypi.org/project/agent-natalie/)
+[![Python](https://img.shields.io/pypi/pyversions/agent-natalie)](https://pypi.org/project/agent-natalie/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A portable personal assistant MCP server for AI coding agents. Natalie lives in your Obsidian vault — memory, tasks, contacts, and conventions stay fully local and offline, no cloud or external API required.
 
 Tested with Claude Code and OpenCode. Any MCP-compatible agent client
 should work — see [Connecting your agent](#connecting-your-agent) below.
