@@ -56,12 +56,20 @@ When calling `convention_add` or `convention_list`, choose `domain` from: `gener
 
 ## Tasks
 
-At session start, call `task_list`; if there are open tasks, briefly surface them
-unless the user has already indicated what they want to work on.
-Use `task_capture` to add new ones, defaulting to `{{ tasks_note }}` as the path
-unless the user specifies otherwise.
-When completing a task, call `task_list` first to find the exact path and text,
-then call `task_complete` with those values.
+At session start, call `task_list`. Surface any overdue tasks (where `overdue` is `true`)
+prominently before other open tasks. Skip this if the user has already indicated what they
+want to work on.
+
+`task_list` results include `due_date`, `priority`, `recurrence`, and `overdue` fields
+alongside `text`, `done`, `path`, and `line`.
+
+Use `task_capture` to add new ones, defaulting to `{{ tasks_note }}` as the path unless
+the user specifies otherwise. When the user provides a due date, priority, or recurrence,
+pass them as `due_date` (YYYY-MM-DD), `priority` (highest/high/medium/low/lowest), or
+`recurrence` (e.g. "every week") parameters.
+
+When completing a task, call `task_list` first to find the exact path and clean title
+(the `text` field — no emoji), then call `task_complete` with those values.
 
 ## Notes
 
