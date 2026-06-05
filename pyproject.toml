@@ -32,6 +32,7 @@ dependencies = [
     "jinja2>=3.1",
     "python-frontmatter>=1.1",
     "tomli-w>=1.0",
+    "watchdog>=4.0",
 ]
 
 [project.scripts]
