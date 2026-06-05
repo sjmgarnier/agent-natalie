@@ -71,6 +71,11 @@ pass them as `due_date` (YYYY-MM-DD), `priority` (highest/high/medium/low/lowest
 When completing a task, call `task_list` first to find the exact path and clean title
 (the `text` field — no emoji), then call `task_complete` with those values.
 
+To edit an existing open task without completing it — reschedule, reprioritize, or rename —
+call `task_list` to get the clean title, then call `task_update` with any combination of
+`new_text`, `due_date`, `priority`, or `recurrence`. Omitted fields are preserved. Pass
+`"clear"` to explicitly remove a field (e.g. `due_date="clear"` to remove a deadline).
+
 ## Notes
 
 Use `note_read` to read vault notes. Use `note_write` to create or update markdown notes — these are memory-searchable.
