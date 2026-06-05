@@ -2,7 +2,15 @@ import datetime
 
 import pytest
 
-from natalie.features.tasks import _parse_task_text, capture_task, complete_task, discover_tasks, update_task
+from natalie.features.tasks import (
+    _parse_task_text,
+    capture_task,
+    complete_task,
+    discover_tasks,
+    index_tasks,
+    sync_tasks,
+    update_task,
+)
 from tests.helpers import write_note
 
 
@@ -421,3 +429,99 @@ def test_update_task_invalid_due_date_raises(vault):
     write_note(vault, "tasks.md", "- [ ] Write report\n")
     with pytest.raises(ValueError, match="due_date"):
         update_task(vault, "tasks.md", "Write report", due_date="next Monday")
+
+
+# ---------------------------------------------------------------------------
+# index_tasks
+# ---------------------------------------------------------------------------
+
+
+def test_index_tasks_inserts_open_task(vault, db):
+    write_note(vault, "todo.md", "- [ ] Buy milk\n")
+    count = index_tasks(db, vault, vault / "todo.md")
+    assert count == 1
+    row = db.execute("SELECT * FROM tasks WHERE path = 'todo.md'").fetchone()
+    assert row["text"] == "Buy milk"
+    assert row["done"] == 0
+
+
+def test_index_tasks_inserts_done_task(vault, db):
+    write_note(vault, "done.md", "- [x] Finished thing\n")
+    index_tasks(db, vault, vault / "done.md")
+    row = db.execute("SELECT * FROM tasks WHERE path = 'done.md'").fetchone()
+    assert row["done"] == 1
+
+
+def test_index_tasks_parses_metadata(vault, db):
+    write_note(vault, "meta.md", "- [ ] Plan trip 📅 2026-07-01 ⏫\n")
+    index_tasks(db, vault, vault / "meta.md")
+    row = db.execute("SELECT * FROM tasks WHERE path = 'meta.md'").fetchone()
+    assert row["text"] == "Plan trip"
+    assert row["due_date"] == "2026-07-01"
+    assert row["priority"] == "high"
+
+
+def test_index_tasks_stores_line_number(vault, db):
+    write_note(vault, "lines.md", "- [ ] First task\n- [ ] Second task\n")
+    index_tasks(db, vault, vault / "lines.md")
+    rows = db.execute("SELECT line FROM tasks WHERE path = 'lines.md' ORDER BY line").fetchall()
+    assert rows[0]["line"] == 1
+    assert rows[1]["line"] == 2
+
+
+def test_index_tasks_replaces_on_reindex(vault, db):
+    write_note(vault, "todo.md", "- [ ] Old task\n")
+    index_tasks(db, vault, vault / "todo.md")
+    write_note(vault, "todo.md", "- [ ] New task\n")
+    index_tasks(db, vault, vault / "todo.md")
+    rows = db.execute("SELECT * FROM tasks WHERE path = 'todo.md'").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["text"] == "New task"
+
+
+def test_index_tasks_missing_file_clears_tasks(vault, db):
+    write_note(vault, "todo.md", "- [ ] My task\n")
+    index_tasks(db, vault, vault / "todo.md")
+    (vault / "todo.md").unlink()
+    count = index_tasks(db, vault, vault / "todo.md")
+    assert count == 0
+    assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'todo.md'").fetchone()[0] == 0
+
+
+def test_index_tasks_returns_count(vault, db):
+    write_note(vault, "multi.md", "- [ ] Task A\n- [x] Done B\n- [ ] Task C\n")
+    count = index_tasks(db, vault, vault / "multi.md")
+    assert count == 3
+
+
+# ---------------------------------------------------------------------------
+# sync_tasks
+# ---------------------------------------------------------------------------
+
+
+def test_sync_tasks_indexes_all_vault_tasks(vault, db):
+    write_note(vault, "a.md", "- [ ] Task A\n")
+    write_note(vault, "b.md", "- [ ] Task B\n- [ ] Task C\n")
+    total = sync_tasks(db, vault)
+    assert total == 3
+
+
+def test_sync_tasks_skips_dot_directories(vault, db):
+    dot = vault / ".obsidian"
+    dot.mkdir()
+    (dot / "hidden.md").write_text("- [ ] Hidden\n", encoding="utf-8")
+    write_note(vault, "visible.md", "- [ ] Visible task\n")
+    sync_tasks(db, vault)
+    rows = db.execute("SELECT path FROM tasks").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["path"] == "visible.md"
+
+
+def test_sync_tasks_replaces_stale_data(vault, db):
+    write_note(vault, "todo.md", "- [ ] Old task\n")
+    sync_tasks(db, vault)
+    write_note(vault, "todo.md", "- [ ] New task\n")
+    sync_tasks(db, vault)
+    rows = db.execute("SELECT text FROM tasks").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["text"] == "New task"
