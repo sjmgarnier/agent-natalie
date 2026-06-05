@@ -356,3 +356,55 @@ def test_contact_search_tool_delegates_to_contacts_mod(monkeypatch: pytest.Monke
     ):
         result = srv.contact_search("Alice")
     assert result == mock_results
+
+
+# ---------------------------------------------------------------------------
+# task_capture / task_complete — metadata delegation
+# ---------------------------------------------------------------------------
+
+
+def test_task_capture_passes_metadata_to_tasks_mod() -> None:
+    expected = {
+        "captured": True,
+        "path": "tasks.md",
+        "task": "File taxes",
+        "due_date": "2026-06-30",
+        "priority": "high",
+        "recurrence": "every year",
+    }
+    with (
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server.tasks_mod.capture_task", return_value=expected) as mock_fn,
+    ):
+        result = srv.task_capture(
+            "tasks.md",
+            "File taxes",
+            due_date="2026-06-30",
+            priority="high",
+            recurrence="every year",
+        )
+    assert result == expected
+    mock_fn.assert_called_once_with(
+        Path("/vault"),
+        "tasks.md",
+        "File taxes",
+        due_date="2026-06-30",
+        priority="high",
+        recurrence="every year",
+    )
+
+
+def test_task_complete_passes_through_dict() -> None:
+    expected = {
+        "completed": True,
+        "path": "tasks.md",
+        "task": "File taxes",
+        "completed_date": "2026-06-04",
+    }
+    with (
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server.tasks_mod.complete_task", return_value=expected) as mock_fn,
+    ):
+        result = srv.task_complete("tasks.md", "File taxes")
+    assert result == expected
+    mock_fn.assert_called_once_with(Path("/vault"), "tasks.md", "File taxes")

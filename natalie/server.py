@@ -267,19 +267,25 @@ def task_list(done: bool = False) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def task_capture(rel_path: str, task_text: str) -> dict[str, Any]:
+def task_capture(
+    rel_path: str,
+    task_text: str,
+    due_date: str | None = None,
+    priority: str | None = None,
+    recurrence: str | None = None,
+) -> dict[str, Any]:
     """Add a new open task to a vault note."""
     vault = _get_vault()
-    tasks_mod.capture_task(vault, rel_path, task_text)
-    return {"captured": True, "path": rel_path, "task": task_text}
+    return tasks_mod.capture_task(
+        vault, rel_path, task_text, due_date=due_date, priority=priority, recurrence=recurrence
+    )
 
 
 @mcp.tool()
 def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
     """Mark a specific task as done."""
     vault = _get_vault()
-    found = tasks_mod.complete_task(vault, rel_path, task_text)
-    return {"completed": found, "path": rel_path, "task": task_text}
+    return tasks_mod.complete_task(vault, rel_path, task_text)
 
 
 @mcp.tool()
