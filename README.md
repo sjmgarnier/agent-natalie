@@ -65,27 +65,7 @@ The dashboard layout requires three CSS snippets that `install.sh` already copie
 If the snippets are not listed, click the folder icon to refresh the snippets directory.
 If the multi-column layout still doesn't render, open the Command palette (Cmd+P / Ctrl+P) and run **Reload app without saving**.
 
-### 3. Install the Local REST API plugin and copy the API key
-
-The [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin
-lets Natalie read and write notes through Obsidian rather than directly to disk.
-This keeps Obsidian's cache in sync so changes appear immediately in the UI.
-
-1. **Settings → Community plugins → turn off Restricted Mode → Browse**
-2. Search **Local REST API** → **Install** → **Enable**
-3. Open **Settings → Community plugins → Local REST API**
-4. Copy the **API Key** shown there
-5. Paste it into `<vault>/Natalie/config.toml`:
-
-```toml
-[obsidian]
-api_key = "paste-your-key-here"
-```
-
-Natalie falls back to direct file I/O if the plugin is not installed, Obsidian is not
-running, or no key is configured.
-
-### 4. Install and configure Dataview
+### 3. Install and configure Dataview
 
 The dashboard uses [Dataview](https://github.com/blacksmithgu/obsidian-dataview) for
 live queries. Install it from the community plugin browser:
@@ -96,7 +76,7 @@ live queries. Install it from the community plugin browser:
 
 Without Dataview the dashboard will show raw code blocks instead of rendered tables and task lists.
 
-### 5. Install the Tasks plugin
+### 4. Install the Tasks plugin
 
 The [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin enables rich task metadata — due dates, priorities, and recurrence rules — that Natalie can read and write via `task_capture` and `task_complete`.
 
@@ -105,7 +85,7 @@ The [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin enabl
 
 Without the Tasks plugin, Natalie falls back to plain checkboxes and the metadata fields (`due`, `priority`, `recurrence`) will not be available.
 
-### 7. Open the Dashboard
+### 5. Open the Dashboard
 
 Click **Dashboard.md** in the vault root. Switch to Reading view if it doesn't render automatically.
 
