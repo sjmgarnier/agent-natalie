@@ -163,7 +163,9 @@ def test_task_capture_passes_metadata_to_tasks_mod() -> None:
     }
     with (
         patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_db", return_value=MagicMock()),
         patch("natalie.server.tasks_mod.capture_task", return_value=expected) as mock_fn,
+        patch("natalie.server.tasks_mod.index_tasks"),
     ):
         result = srv.task_capture(
             "tasks.md",
@@ -192,7 +194,9 @@ def test_task_complete_passes_through_dict() -> None:
     }
     with (
         patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_db", return_value=MagicMock()),
         patch("natalie.server.tasks_mod.complete_task", return_value=expected) as mock_fn,
+        patch("natalie.server.tasks_mod.index_tasks"),
     ):
         result = srv.task_complete("tasks.md", "File taxes")
     assert result == expected
@@ -210,7 +214,9 @@ def test_task_update_passes_through_dict() -> None:
     }
     with (
         patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_db", return_value=MagicMock()),
         patch("natalie.server.tasks_mod.update_task", return_value=expected) as mock_fn,
+        patch("natalie.server.tasks_mod.index_tasks"),
     ):
         result = srv.task_update("tasks.md", "Write report", due_date="2026-07-01", priority="high")
     assert result == expected
@@ -223,3 +229,62 @@ def test_task_update_passes_through_dict() -> None:
         priority="high",
         recurrence=None,
     )
+
+
+# ---------------------------------------------------------------------------
+# task_list — DB-backed query
+# ---------------------------------------------------------------------------
+
+
+def _setup_server(vault, db_vault):
+    """Point module-level server state at the given vault/db."""
+    srv._vault = vault
+    srv._db_vault = db_vault
+    srv._db_local = threading.local()
+
+
+def test_task_list_returns_open_tasks_from_db(vault, db):
+    # Insert directly into DB — no file on disk — proves task_list uses DB not filesystem scan
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Buy milk", 0, None, None, None),
+    )
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 2, "Done thing", 1, None, None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list(done=False)
+    assert len(result) == 1
+    assert result[0]["text"] == "Buy milk"
+    assert result[0]["done"] is False
+
+
+def test_task_list_done_true_includes_completed(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Open task", 0, None, None, None),
+    )
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 2, "Done task", 1, None, None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list(done=True)
+    assert len(result) == 2
+
+
+def test_task_list_overdue_flag(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Late task", 0, "2020-01-01", None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list()
+    assert result[0]["overdue"] is True

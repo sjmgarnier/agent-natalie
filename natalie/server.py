@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import re
 import sqlite3
 import sys
@@ -224,9 +225,29 @@ def onboarding_complete() -> dict[str, Any]:
 @mcp.tool()
 def task_list(done: bool = False) -> list[dict[str, Any]]:
     """List tasks across the vault. Set done=True to include completed tasks."""
-    vault = _get_vault()
-    all_tasks = tasks_mod.discover_tasks(vault)
-    return [t for t in all_tasks if done or not t["done"]]
+    db = _get_db()
+    today = datetime.date.today().isoformat()
+    if done:
+        rows = db.execute(
+            "SELECT path, line, text, done, due_date, priority, recurrence, "
+            "CASE WHEN done=0 AND due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue "
+            "FROM tasks ORDER BY due_date ASC NULLS LAST, path",
+            (today,),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT path, line, text, done, due_date, priority, recurrence, "
+            "CASE WHEN due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue "
+            "FROM tasks WHERE done=0 ORDER BY due_date ASC NULLS LAST, path",
+            (today,),
+        ).fetchall()
+    result = []
+    for r in rows:
+        t = dict(r)
+        t["done"] = bool(t["done"])
+        t["overdue"] = bool(t["overdue"])
+        result.append(t)
+    return result
 
 
 @mcp.tool()
@@ -239,16 +260,20 @@ def task_capture(
 ) -> dict[str, Any]:
     """Add a new open task to a vault note."""
     vault = _get_vault()
-    return tasks_mod.capture_task(
+    result = tasks_mod.capture_task(
         vault, rel_path, task_text, due_date=due_date, priority=priority, recurrence=recurrence
     )
+    tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
+    return result
 
 
 @mcp.tool()
 def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
     """Mark a specific task as done."""
     vault = _get_vault()
-    return tasks_mod.complete_task(vault, rel_path, task_text)
+    result = tasks_mod.complete_task(vault, rel_path, task_text)
+    tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
+    return result
 
 
 @mcp.tool()
@@ -262,7 +287,7 @@ def task_update(
 ) -> dict[str, Any]:
     """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence."""
     vault = _get_vault()
-    return tasks_mod.update_task(
+    result = tasks_mod.update_task(
         vault,
         rel_path,
         task_text,
@@ -271,6 +296,8 @@ def task_update(
         priority=priority,
         recurrence=recurrence,
     )
+    tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
+    return result
 
 
 @mcp.tool()
