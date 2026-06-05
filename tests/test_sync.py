@@ -154,6 +154,36 @@ def test_full_sync_preserves_notes_if_reindex_fails(vault, db):
     assert after == 1, "notes must survive rollback after failed full-sync"
 
 
+def test_sync_vault_indexes_tasks(vault, db):
+    write_note(vault, "tasks.md", "- [ ] Do something\n- [ ] Do another\n")
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault)
+    rows = db.execute("SELECT * FROM tasks").fetchall()
+    assert len(rows) == 2
+
+
+def test_sync_vault_full_clears_and_rebuilds_tasks(vault, db):
+    write_note(vault, "tasks.md", "- [ ] Old task\n")
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault)
+    write_note(vault, "tasks.md", "- [ ] New task\n")
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault, full=True)
+    rows = db.execute("SELECT text FROM tasks").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["text"] == "New task"
+
+
+def test_sync_vault_removes_tasks_for_deleted_notes(vault, db):
+    note = write_note(vault, "tasks.md", "- [ ] Disappearing task\n")
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault)
+    note.unlink()
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault)
+    assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'tasks.md'").fetchone()[0] == 0
+
+
 def test_sync_vault_works_with_symlinked_vault(vault, db):
     """sync_vault must not raise ValueError when vault is accessed via a symlink — B1."""
     import os
