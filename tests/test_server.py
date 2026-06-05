@@ -408,3 +408,29 @@ def test_task_complete_passes_through_dict() -> None:
         result = srv.task_complete("tasks.md", "File taxes")
     assert result == expected
     mock_fn.assert_called_once_with(Path("/vault"), "tasks.md", "File taxes")
+
+
+def test_task_update_passes_through_dict() -> None:
+    expected = {
+        "updated": True,
+        "path": "tasks.md",
+        "task": "Write report",
+        "due_date": "2026-07-01",
+        "priority": "high",
+        "recurrence": None,
+    }
+    with (
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server.tasks_mod.update_task", return_value=expected) as mock_fn,
+    ):
+        result = srv.task_update("tasks.md", "Write report", due_date="2026-07-01", priority="high")
+    assert result == expected
+    mock_fn.assert_called_once_with(
+        Path("/vault"),
+        "tasks.md",
+        "Write report",
+        new_text=None,
+        due_date="2026-07-01",
+        priority="high",
+        recurrence=None,
+    )

@@ -289,6 +289,28 @@ def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+def task_update(
+    rel_path: str,
+    task_text: str,
+    new_text: str | None = None,
+    due_date: str | None = None,
+    priority: str | None = None,
+    recurrence: str | None = None,
+) -> dict[str, Any]:
+    """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence."""
+    vault = _get_vault()
+    return tasks_mod.update_task(
+        vault,
+        rel_path,
+        task_text,
+        new_text=new_text,
+        due_date=due_date,
+        priority=priority,
+        recurrence=recurrence,
+    )
+
+
+@mcp.tool()
 def document_file(
     rel_path: str,
     description: str,
