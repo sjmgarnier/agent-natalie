@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-from natalie.features.tasks import _parse_task_text, capture_task, complete_task, discover_tasks
+from natalie.features.tasks import _parse_task_text, capture_task, complete_task, discover_tasks, update_task
 from tests.helpers import write_note
 
 
@@ -332,3 +332,92 @@ def test_complete_task_does_not_match_partial_title(vault):
     write_note(vault, "tasks.md", "- [ ] Buy milk\n")
     result = complete_task(vault, "tasks.md", "Buy")
     assert result["completed"] is False
+
+
+# --- update_task ---
+
+
+def test_update_task_due_date_only(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report ⏫\n")
+    result = update_task(vault, "tasks.md", "Write report", due_date="2026-07-01")
+    assert result["updated"] is True
+    assert result["due_date"] == "2026-07-01"
+    assert result["priority"] == "high"  # preserved
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ] Write report ⏫ 📅 2026-07-01" in content
+
+
+def test_update_task_priority_only(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report 📅 2026-07-01\n")
+    result = update_task(vault, "tasks.md", "Write report", priority="high")
+    assert result["updated"] is True
+    assert result["priority"] == "high"
+    assert result["due_date"] == "2026-07-01"  # preserved
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ] Write report ⏫ 📅 2026-07-01" in content
+
+
+def test_update_task_recurrence_only(vault):
+    write_note(vault, "tasks.md", "- [ ] Water plants\n")
+    result = update_task(vault, "tasks.md", "Water plants", recurrence="every week")
+    assert result["updated"] is True
+    assert result["recurrence"] == "every week"
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ] Water plants 🔁 every week" in content
+
+
+def test_update_task_rename_only(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report ⏫ 📅 2026-07-01\n")
+    result = update_task(vault, "tasks.md", "Write report", new_text="Write final report")
+    assert result["updated"] is True
+    assert result["task"] == "Write final report"
+    assert result["priority"] == "high"  # preserved
+    assert result["due_date"] == "2026-07-01"  # preserved
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ] Write final report ⏫ 📅 2026-07-01" in content
+    assert "- [ ] Write report" not in content
+
+
+def test_update_task_multiple_fields(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report 🔽\n")
+    result = update_task(vault, "tasks.md", "Write report", priority="highest", due_date="2026-08-01")
+    assert result["updated"] is True
+    assert result["priority"] == "highest"
+    assert result["due_date"] == "2026-08-01"
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ] Write report 🔺 📅 2026-08-01" in content
+
+
+def test_update_task_clear_due_date(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report ⏫ 📅 2026-07-01\n")
+    result = update_task(vault, "tasks.md", "Write report", due_date="clear")
+    assert result["updated"] is True
+    assert result["due_date"] is None
+    assert result["priority"] == "high"  # preserved
+    content = (vault / "tasks.md").read_text()
+    assert "📅" not in content
+    assert "⏫" in content
+
+
+def test_update_task_not_found(vault):
+    write_note(vault, "tasks.md", "- [ ] Something else\n")
+    result = update_task(vault, "tasks.md", "Nonexistent task", due_date="2026-07-01")
+    assert result["updated"] is False
+
+
+def test_update_task_no_fields_raises(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report\n")
+    with pytest.raises(ValueError, match="at least one"):
+        update_task(vault, "tasks.md", "Write report")
+
+
+def test_update_task_invalid_priority_raises(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report\n")
+    with pytest.raises(ValueError, match="priority"):
+        update_task(vault, "tasks.md", "Write report", priority="urgent")
+
+
+def test_update_task_invalid_due_date_raises(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report\n")
+    with pytest.raises(ValueError, match="due_date"):
+        update_task(vault, "tasks.md", "Write report", due_date="next Monday")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from ..utils import safe_join
 
@@ -25,6 +25,8 @@ _RECURRENCE_RE: re.Pattern[str] = re.compile(r"🔁\s*([^📅⏳🛫✅🔺⏫�
 
 # Matches the start of Tasks plugin metadata (used in complete_task match pattern)
 _META_EMOJI: str = r"[📅🔺⏫🔼🔽⏬🔁✅⏳🛫]"
+
+_OPEN_TASK_RE: re.Pattern[str] = re.compile(r"^(\s*)- \[ \] (.+)$")
 
 
 def _parse_task_text(raw: str) -> dict[str, str | None]:
@@ -180,3 +182,88 @@ def complete_task(
         return {"completed": False, "path": rel_path, "task": task_text, "completed_date": None}
     full.write_text(new_content, encoding="utf-8")
     return {"completed": True, "path": rel_path, "task": task_text, "completed_date": completed_date}
+
+
+def update_task(
+    vault: Path,
+    rel_path: str,
+    task_text: str,
+    *,
+    new_text: str | None = None,
+    due_date: str | Literal["clear"] | None = None,
+    priority: str | Literal["clear"] | None = None,
+    recurrence: str | Literal["clear"] | None = None,
+) -> dict[str, Any]:
+    """Edit an existing open task in place without marking it complete."""
+    if new_text is None and due_date is None and priority is None and recurrence is None:
+        raise ValueError("at least one of new_text, due_date, priority, or recurrence must be provided")
+    if priority is not None and priority != "clear" and priority not in _VALID_PRIORITIES:
+        raise ValueError(f"priority must be one of {sorted(_VALID_PRIORITIES)} or 'clear', got {priority!r}")
+    if due_date is not None and due_date != "clear":
+        try:
+            datetime.date.fromisoformat(due_date)
+        except ValueError:
+            raise ValueError(f"due_date must be in YYYY-MM-DD format or 'clear', got {due_date!r}")
+
+    full = safe_join(vault, rel_path)
+    if not full.exists():
+        return {
+            "updated": False,
+            "path": rel_path,
+            "task": task_text,
+            "due_date": None,
+            "priority": None,
+            "recurrence": None,
+        }
+
+    content = full.read_text(encoding="utf-8")
+    lines = content.splitlines(keepends=True)
+
+    for i, line in enumerate(lines):
+        m = _OPEN_TASK_RE.match(line.rstrip("\n\r"))
+        if m is None:
+            continue
+        parsed = _parse_task_text(m.group(2).strip())
+        if parsed["text"] != task_text:
+            continue
+
+        final_text = new_text if new_text is not None else task_text
+        final_due = (
+            None if due_date == "clear" else (due_date if due_date is not None else parsed["due_date"])
+        )
+        final_prio = (
+            None if priority == "clear" else (priority if priority is not None else parsed["priority"])
+        )
+        final_recur = (
+            None
+            if recurrence == "clear"
+            else (recurrence if recurrence is not None else parsed["recurrence"])
+        )
+
+        metadata = _format_task_metadata(final_due, final_prio, final_recur)
+        indent = m.group(1)
+        new_line = f"{indent}- [ ] {final_text}"
+        if metadata:
+            new_line += f" {metadata}"
+        stripped_len = len(line.rstrip("\n\r"))
+        ending = line[stripped_len:] or "\n"
+        lines[i] = new_line + ending
+
+        full.write_text("".join(lines), encoding="utf-8")
+        return {
+            "updated": True,
+            "path": rel_path,
+            "task": final_text,
+            "due_date": final_due,
+            "priority": final_prio,
+            "recurrence": final_recur,
+        }
+
+    return {
+        "updated": False,
+        "path": rel_path,
+        "task": task_text,
+        "due_date": None,
+        "priority": None,
+        "recurrence": None,
+    }
