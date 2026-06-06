@@ -1,3 +1,6 @@
+# Keep the venv outside ProtonDrive so sync evictions don't corrupt it.
+export UV_PROJECT_ENVIRONMENT := $(HOME)/.local/share/agent-natalie/.venv
+
 .PHONY: lint format typecheck security test check install-hooks publish
 
 lint:

@@ -2,12 +2,14 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-# Rebuild the venv if ProtonDrive (or anything else) evicted its files.
+# Keep the venv outside ProtonDrive so evictions don't corrupt it.
+export UV_PROJECT_ENVIRONMENT="$HOME/.local/share/agent-natalie/.venv"
+
+# Rebuild the venv if it's missing or broken.
 if ! uv run python -c "import natalie" &>/dev/null; then
-    echo "pre-commit: venv appears broken — rebuilding..."
-    rm -rf .venv
-    uv venv
-    uv pip install -e ".[dev]"
+    echo "pre-commit: venv appears broken — rebuilding at $UV_PROJECT_ENVIRONMENT..."
+    rm -rf "$UV_PROJECT_ENVIRONMENT"
+    uv sync --all-extras
 fi
 
 make check
