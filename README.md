@@ -160,6 +160,7 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 | Tool | Description |
 |------|-------------|
 | `ping` | Check that the server is running |
+| `watcher_status` | Inspect vault watcher daemon health (alive, path, thread ident) |
 | `memory_search` | Hybrid FTS + semantic search across vault notes |
 | `memory_store` | Store an outside-vault knowledge entry |
 | `note_read` | Read a vault note by path |
@@ -167,14 +168,19 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 | `task_list` | List open (or all) tasks across the vault |
 | `task_capture` | Add a task to a note |
 | `task_complete` | Mark a task done |
+| `task_update` | Edit an existing task in place (text, due date, priority, recurrence) |
 | `document_file` | Register a vault file in the document index with a semantic description |
 | `document_list` | List or semantically search filed documents |
 | `contact_get` | Get a contact card by slug |
 | `contact_update` | Create or update a contact card |
 | `contact_list` | List all contact slugs |
+| `contact_search` | Hybrid search over contacts by name, company, or notes |
 | `convention_list` | List conventions, optionally filtered by domain |
 | `convention_add` | Add a convention |
+| `convention_update` | Edit a convention in place |
 | `convention_delete` | Delete a convention by ID |
+| `onboarding_status` | Check whether onboarding has been completed |
+| `onboarding_complete` | Mark onboarding complete |
 
 ---
 
