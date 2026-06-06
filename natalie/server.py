@@ -393,7 +393,7 @@ def contact_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
 
 
 def main() -> None:
-    global _vault, _config, _db_vault
+    global _vault, _config, _db_vault, _observer
     try:
         _vault = require_vault()
     except RuntimeError as exc:
