@@ -525,3 +525,21 @@ def test_sync_tasks_replaces_stale_data(vault, db):
     rows = db.execute("SELECT text FROM tasks").fetchall()
     assert len(rows) == 1
     assert rows[0]["text"] == "New task"
+
+
+def test_index_tasks_stores_none_for_invalid_due_date(vault, db):
+    """A syntactically matching but semantically invalid date must be stored as NULL."""
+    write_note(vault, "tasks.md", "- [ ] Bad date task 📅 2024-99-99\n")
+    index_tasks(db, vault, vault / "tasks.md")
+    row = db.execute("SELECT due_date FROM tasks WHERE path = 'tasks.md'").fetchone()
+    assert row is not None
+    assert row["due_date"] is None
+
+
+def test_discover_tasks_stores_none_for_invalid_due_date(vault):
+    """discover_tasks must not report overdue=False via silent swallow; it clears bad dates."""
+    write_note(vault, "tasks.md", "- [ ] Bad date task 📅 2024-99-99\n")
+    tasks = discover_tasks(vault)
+    assert len(tasks) == 1
+    assert tasks[0]["due_date"] is None
+    assert tasks[0]["overdue"] is False

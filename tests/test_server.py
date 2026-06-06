@@ -129,8 +129,82 @@ def test_convention_update_tool_delegates_to_mem(monkeypatch: pytest.MonkeyPatch
         patch("natalie.server.mem.convention_update", return_value=True) as mock_fn,
     ):
         result = srv.convention_update(1, rule="new rule")
-    assert result is True
+    assert result["updated"] is True
     mock_fn.assert_called_once()
+
+
+def test_convention_update_tool_returns_dict(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    add_result = srv.convention_add("code", "use snake_case")
+    conv_id = add_result["id"]
+    result = srv.convention_update(conv_id, rule="use snake_case always")
+    assert isinstance(result, dict)
+    assert result["updated"] is True
+    assert result["id"] == conv_id
+
+
+def test_watcher_status_survives_emitters_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _BadObserver:
+        @property
+        def emitters(self) -> None:
+            raise RuntimeError("set changed size during iteration")
+
+        def is_alive(self) -> bool:
+            return True
+
+        ident = 42
+        daemon = True
+
+    monkeypatch.setattr(srv, "_observer", _BadObserver())
+    result = srv.watcher_status()
+    assert result["alive"] is True
+    assert result["path"] is None
+
+
+def test_note_read_rejects_empty_path(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="path"):
+        srv.note_read("")
+
+
+def test_note_read_rejects_whitespace_path(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="path"):
+        srv.note_read("   ")
+
+
+def test_task_capture_rejects_empty_rel_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="rel_path"):
+        srv.task_capture("", "My task")
+
+
+def test_task_complete_rejects_empty_rel_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="rel_path"):
+        srv.task_complete("", "My task")
+
+
+def test_task_update_rejects_empty_rel_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="rel_path"):
+        srv.task_update("", "My task", new_text="Updated")
 
 
 def test_contact_search_tool_delegates_to_contacts_mod(monkeypatch: pytest.MonkeyPatch) -> None:

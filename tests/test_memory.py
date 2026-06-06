@@ -266,6 +266,22 @@ def test_index_note_invalidates_stale_embedding(vault, db, monkeypatch):
     assert db.execute("SELECT COUNT(*) FROM embeddings WHERE note_id = ?", (row["id"],)).fetchone()[0] == 0
 
 
+def test_index_note_resets_machine_mac_on_path_collision(vault, db):
+    """If a memory_store entry occupies a path, index_note must reset machine_mac to NULL."""
+    rel = "collision.md"
+    db.execute(
+        "INSERT INTO notes (path, title, body, last_modified, collection, machine_mac) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (rel, "Mem", "mem body", 0.0, "global", "aa:bb:cc:dd:ee:ff"),
+    )
+    db.commit()
+    note = write_note(vault, rel, "# Vault note\nBody")
+    index_note(db, vault, note)
+    row = db.execute("SELECT machine_mac FROM notes WHERE path = ?", (rel,)).fetchone()
+    assert row is not None
+    assert row["machine_mac"] is None
+
+
 def test_memory_store_unique_paths_no_collision(vault, db, monkeypatch):
     """Two stores with the same title must produce distinct files."""
     import natalie.server as srv

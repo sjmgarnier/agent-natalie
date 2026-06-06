@@ -44,7 +44,12 @@ def _parse_task_text(raw: str) -> dict[str, str | None]:
     due_date: str | None = None
     dm = _DUE_DATE_RE.search(text)
     if dm:
-        due_date = dm.group(1)
+        raw_due = dm.group(1)
+        try:
+            datetime.date.fromisoformat(raw_due)
+            due_date = raw_due
+        except ValueError:
+            due_date = None
         text = text[: dm.start()] + text[dm.end() :]
 
     recurrence: str | None = None
@@ -304,6 +309,7 @@ def sync_tasks(db: sqlite3.Connection, vault: Path) -> int:
     """Re-index all tasks from vault notes. Returns total task rows written."""
     vault = vault.resolve()
     db.execute("DELETE FROM tasks")
+    db.commit()
     md_files = [
         p for p in vault.rglob("*.md") if not any(part.startswith(".") for part in p.relative_to(vault).parts)
     ]

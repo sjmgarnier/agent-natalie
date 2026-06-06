@@ -62,7 +62,10 @@ def watcher_status() -> dict[str, Any]:
     """Return the status of the vault file-watcher daemon."""
     if _observer is None:
         return {"alive": False, "error": "watcher not started"}
-    emitters = list(_observer.emitters)
+    try:
+        emitters = list(_observer.emitters)
+    except RuntimeError:
+        emitters = []
     watch = emitters[0].watch if emitters else None
     return {
         "alive": _observer.is_alive(),
@@ -178,6 +181,8 @@ def memory_store(
 @mcp.tool()
 def note_read(path: str) -> str | None:
     """Read a vault note by relative path. Returns content or None if not found."""
+    if not path.strip():
+        raise ValueError("path must not be empty")
     vault = _get_vault()
     full = safe_join(vault, path)
     return full.read_text(encoding="utf-8") if full.exists() else None
@@ -224,9 +229,10 @@ def convention_update(
     domain: str | None = None,
     rule: str | None = None,
     source: str | None = None,
-) -> bool:
-    """Edit a convention in place. Supply only the fields to change. Returns True if found."""
-    return mem.convention_update(_get_db(), id, domain=domain, rule=rule, source=source)
+) -> dict[str, Any]:
+    """Edit a convention in place. Supply only the fields to change. Returns updated and id."""
+    updated = mem.convention_update(_get_db(), id, domain=domain, rule=rule, source=source)
+    return {"updated": updated, "id": id}
 
 
 @mcp.tool()
@@ -278,6 +284,8 @@ def task_capture(
     recurrence: str | None = None,
 ) -> dict[str, Any]:
     """Add a new open task to a vault note."""
+    if not rel_path.strip():
+        raise ValueError("rel_path must not be empty")
     vault = _get_vault()
     result = tasks_mod.capture_task(
         vault, rel_path, task_text, due_date=due_date, priority=priority, recurrence=recurrence
@@ -289,6 +297,8 @@ def task_capture(
 @mcp.tool()
 def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
     """Mark a specific task as done."""
+    if not rel_path.strip():
+        raise ValueError("rel_path must not be empty")
     vault = _get_vault()
     result = tasks_mod.complete_task(vault, rel_path, task_text)
     tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
@@ -305,6 +315,8 @@ def task_update(
     recurrence: str | None = None,
 ) -> dict[str, Any]:
     """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence."""
+    if not rel_path.strip():
+        raise ValueError("rel_path must not be empty")
     vault = _get_vault()
     result = tasks_mod.update_task(
         vault,
@@ -401,7 +413,7 @@ def main() -> None:
     _config = load_config(_vault)
     init_db(_vault)  # create schema; connections are opened per-thread via _get_db()
     _db_vault = _vault
-    tasks_mod.sync_tasks(get_db(_db_vault), _vault)
+    tasks_mod.sync_tasks(_get_db(), _vault)
     _observer = start_watcher(_vault, _db_vault)
     mcp.run()
 

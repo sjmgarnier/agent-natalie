@@ -55,7 +55,8 @@ def index_note(
             frontmatter   = excluded.frontmatter,
             body          = excluded.body,
             last_modified = excluded.last_modified,
-            collection    = excluded.collection
+            collection    = excluded.collection,
+            machine_mac   = NULL
         """,
         (rel, title, tags, json.dumps(meta, default=str), body, mtime, collection),
     )

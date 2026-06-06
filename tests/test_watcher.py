@@ -75,6 +75,15 @@ def test_handler_ignores_directory_events(vault, db, handler):
     assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
 
 
+def test_handler_on_created_exception_does_not_propagate(vault, db, handler):
+    """An exception in _index_file must not escape the event handler and kill the observer thread."""
+    from unittest.mock import patch
+
+    with patch.object(handler, "_index_file", side_effect=OSError("Permission denied")):
+        # Should not raise — handler must absorb the error
+        handler.on_created(FileCreatedEvent(str(vault / "any.md")))
+
+
 def test_start_watcher_returns_running_observer(vault):
     from natalie.features.watcher import start_watcher
 
