@@ -118,9 +118,10 @@ def get_db(vault: Path) -> sqlite3.Connection:
     return conn
 
 
-def init_db(vault: Path) -> sqlite3.Connection:
+def init_db(vault: Path) -> None:
+    """Create the .natalie directory and initialise the DB schema if needed."""
     (vault / ".natalie").mkdir(parents=True, exist_ok=True)
     conn = get_db(vault)
     conn.executescript(_SCHEMA)
     conn.commit()
-    return conn
+    conn.close()

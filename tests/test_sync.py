@@ -48,7 +48,8 @@ def test_sync_cli_command_runs(vault, db):
     with (
         patch("natalie.cli.require_vault", return_value=vault),
         patch("natalie.cli.load_config") as mock_cfg,
-        patch("natalie.cli.init_db", return_value=db),
+        patch("natalie.cli.init_db"),
+        patch("natalie.cli.get_db", return_value=db),
         patch("natalie.features.sync.embed_notes"),
     ):
         mock_cfg.return_value.memory.embedding_model = "BAAI/bge-small-en-v1.5"

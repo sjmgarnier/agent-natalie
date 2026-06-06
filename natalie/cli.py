@@ -9,7 +9,7 @@ import tomli_w
 import typer
 
 from .config import load_config
-from .db import init_db
+from .db import get_db, init_db
 from .features.memory import DEFAULT_EMBEDDING_MODEL
 from .generate import render_instructions
 from .vault import require_vault
@@ -53,7 +53,8 @@ def sync(
     """Sync the vault index (incremental by default)."""
     vault = require_vault()
     config = load_config(vault)
-    db = init_db(vault)
+    init_db(vault)
+    db = get_db(vault)
     from .features.sync import sync_vault
 
     if full:
