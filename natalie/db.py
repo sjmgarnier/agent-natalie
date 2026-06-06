@@ -106,6 +106,12 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS tasks_path_idx ON tasks(path);
 CREATE UNIQUE INDEX IF NOT EXISTS tasks_path_line_idx ON tasks(path, line);
+
+CREATE TABLE IF NOT EXISTS sync_log (
+    id        INTEGER PRIMARY KEY,
+    synced_at REAL    NOT NULL,
+    trigger   TEXT    NOT NULL CHECK(trigger IN ('startup', 'manual'))
+);
 """
 
 
