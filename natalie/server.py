@@ -30,6 +30,7 @@ _vault: Path | None = None
 _config: NatalieConfig | None = None
 _db_vault: Path | None = None  # vault path used to create per-thread connections
 _db_local: threading.local = threading.local()  # each FastMCP worker thread gets its own connection
+_observer: Any | None = None
 
 
 def _get_vault() -> Path:
@@ -54,6 +55,22 @@ def ping() -> str:
     """Check that the Natalie server is running and return vault path."""
     vault = _get_vault()
     return f"pong — vault: {vault}"
+
+
+@mcp.tool()
+def watcher_status() -> dict[str, Any]:
+    """Return the status of the vault file-watcher daemon."""
+    if _observer is None:
+        return {"alive": False, "error": "watcher not started"}
+    emitters = list(_observer.emitters)
+    watch = emitters[0].watch if emitters else None
+    return {
+        "alive": _observer.is_alive(),
+        "path": str(watch.path) if watch else None,
+        "recursive": watch.is_recursive if watch else None,
+        "thread_ident": _observer.ident,
+        "daemon": _observer.daemon,
+    }
 
 
 @mcp.tool()
@@ -385,7 +402,7 @@ def main() -> None:
     init_db(_vault)  # create schema; connections are opened per-thread via _get_db()
     _db_vault = _vault
     tasks_mod.sync_tasks(get_db(_db_vault), _vault)
-    start_watcher(_vault, _db_vault)
+    _observer = start_watcher(_vault, _db_vault)
     mcp.run()
 
 
