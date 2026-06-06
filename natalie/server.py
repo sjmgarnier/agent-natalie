@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .config import NatalieConfig, load_config
 from .db import get_db, init_db
+from .features import browse as browse_mod
 from .features import contacts as contacts_mod
 from .features import documents as docs_mod
 from .features import memory as mem
@@ -74,6 +75,18 @@ def watcher_status() -> dict[str, Any]:
         "thread_ident": _observer.ident,
         "daemon": _observer.daemon,
     }
+
+
+@mcp.tool()
+def note_list(directory: str | None = None) -> list[dict[str, Any]]:
+    """List indexed vault notes. Pass directory to filter by subdirectory (e.g. 'Projects/Alpha')."""
+    return browse_mod.list_notes(_get_db(), directory=directory)
+
+
+@mcp.tool()
+def vault_stats() -> dict[str, Any]:
+    """Return vault index statistics: note count, memory count, open tasks, embedding coverage, last sync."""
+    return browse_mod.vault_stats(_get_db())
 
 
 @mcp.tool()
