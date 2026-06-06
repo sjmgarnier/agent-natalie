@@ -91,3 +91,77 @@ def test_start_watcher_returns_running_observer(vault):
     assert observer.is_alive()
     observer.stop()
     observer.join()
+
+
+def test_handler_on_modified_exception_is_logged(vault, db, handler, caplog):
+    import logging
+    from unittest.mock import patch
+
+    with caplog.at_level(logging.ERROR, logger="natalie.features.watcher"):
+        with patch.object(handler, "_index_file", side_effect=RuntimeError("disk full")):
+            handler.on_modified(FileModifiedEvent(str(vault / "note.md")))
+
+    # The exception is logged via _log.exception — check a watcher ERROR record was emitted
+    watcher_errors = [
+        r for r in caplog.records if r.name == "natalie.features.watcher" and r.levelno >= logging.ERROR
+    ]
+    assert watcher_errors, "expected at least one ERROR log record from watcher"
+
+
+def test_handler_on_deleted_exception_is_logged(vault, db, handler, caplog):
+    import logging
+    from unittest.mock import patch
+
+    with caplog.at_level(logging.ERROR, logger="natalie.features.watcher"):
+        with patch.object(handler, "_remove_file", side_effect=RuntimeError("disk full")):
+            handler.on_deleted(FileDeletedEvent(str(vault / "gone.md")))
+
+    watcher_errors = [
+        r for r in caplog.records if r.name == "natalie.features.watcher" and r.levelno >= logging.ERROR
+    ]
+    assert watcher_errors, "expected at least one ERROR log record from watcher"
+
+
+def test_handler_on_moved_from_outside_vault_only_indexes_dest(vault, db):
+    import tempfile
+
+    handler = _VaultEventHandler(vault, vault)
+    indexed: list[str] = []
+    removed: list[str] = []
+    handler._index_file = lambda p: indexed.append(p)  # type: ignore[method-assign]
+    handler._remove_file = lambda p: removed.append(p)  # type: ignore[method-assign]
+
+    with tempfile.TemporaryDirectory() as external_dir:
+        from pathlib import Path as _Path
+
+        outside = _Path(external_dir) / "external.md"
+        outside.write_text("x", encoding="utf-8")
+        dest = vault / "arrived.md"
+        dest.write_text("x", encoding="utf-8")
+
+        handler.on_moved(FileMovedEvent(str(outside), str(dest)))
+
+    assert indexed == [str(dest)]
+    assert removed == []
+
+
+def test_handler_on_moved_to_outside_vault_only_removes_src(vault, db):
+    import tempfile
+
+    handler = _VaultEventHandler(vault, vault)
+    indexed: list[str] = []
+    removed: list[str] = []
+    handler._index_file = lambda p: indexed.append(p)  # type: ignore[method-assign]
+    handler._remove_file = lambda p: removed.append(p)  # type: ignore[method-assign]
+
+    src = vault / "leaving.md"
+    src.write_text("x", encoding="utf-8")
+
+    with tempfile.TemporaryDirectory() as external_dir:
+        from pathlib import Path as _Path
+
+        dest = _Path(external_dir) / "external.md"
+        handler.on_moved(FileMovedEvent(str(src), str(dest)))
+
+    assert removed == [str(src)]
+    assert indexed == []

@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from ..utils import safe_join
 
-_ANY_RE: re.Pattern[str] = re.compile(r"^(\s*- \[[ xX]\] )(.+)$", re.MULTILINE)
+_ANY_RE: re.Pattern[str] = re.compile(r"^([ \t]*- \[[ xX]\] )(.+)$", re.MULTILINE)
 
 _PRIORITY_EMOJIS: dict[str, str] = {
     "🔺": "highest",
@@ -37,7 +37,7 @@ def _parse_task_text(raw: str) -> dict[str, str | None]:
     priority: str | None = None
     pm = _PRIORITY_RE.search(text)
     if pm:
-        emoji = pm.group(0).rstrip("️")
+        emoji = pm.group(0).removesuffix("️")
         priority = _PRIORITY_EMOJIS.get(emoji)
         text = text[: pm.start()] + text[pm.end() :]
 

@@ -545,6 +545,21 @@ def test_discover_tasks_stores_none_for_invalid_due_date(vault):
     assert tasks[0]["overdue"] is False
 
 
+def test_index_tasks_line_number_after_heading_and_blank(vault, db):
+    write_note(vault, "heading.md", "# My Notes\n\n- [ ] First task\n- [ ] Second task\n")
+    index_tasks(db, vault, vault / "heading.md")
+    rows = db.execute("SELECT line, text FROM tasks WHERE path = 'heading.md' ORDER BY line").fetchall()
+    assert len(rows) == 2
+    assert rows[0]["line"] == 3, f"first task should be on line 3, got {rows[0]['line']}"
+    assert rows[1]["line"] == 4, f"second task should be on line 4, got {rows[1]['line']}"
+
+
+def test_parse_task_text_priority_variation_selector(vault, db):
+    result = _parse_task_text("My Task 🔺️")
+    assert result["priority"] == "highest", f"got {result['priority']!r}"
+    assert result["text"] == "My Task", f"got {result['text']!r}"
+
+
 def test_index_tasks_no_duplicate_rows_on_double_call(vault, db):
     write_note(vault, "dup.md", "- [ ] Task One\n")
     index_tasks(db, vault, vault / "dup.md")

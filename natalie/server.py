@@ -105,6 +105,7 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
                 "score": 0.0,
                 "excerpt": r.get("excerpt", ""),
                 "source": "keyword",
+                "collection": r.get("collection"),
             },
         )
         rrf[path]["score"] += 1.0 / (K + rank)
@@ -118,6 +119,7 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
                 "score": 0.0,
                 "excerpt": r.get("excerpt", ""),
                 "source": "semantic",
+                "collection": r.get("collection"),
             }
         else:
             rrf[path]["source"] = "hybrid"
@@ -301,6 +303,8 @@ def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
     """Mark a specific task as done."""
     if not rel_path.strip():
         raise ValueError("rel_path must not be empty")
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
     vault = _get_vault()
     result = tasks_mod.complete_task(vault, rel_path, task_text)
     tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
@@ -319,6 +323,8 @@ def task_update(
     """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence."""
     if not rel_path.strip():
         raise ValueError("rel_path must not be empty")
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
     vault = _get_vault()
     result = tasks_mod.update_task(
         vault,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 from pathlib import Path
@@ -11,6 +12,8 @@ from watchdog.observers import Observer
 from ..db import get_db
 from .memory import index_note, remove_note
 from .tasks import index_tasks
+
+_log = logging.getLogger(__name__)
 
 
 class _VaultEventHandler(FileSystemEventHandler):
@@ -57,21 +60,21 @@ class _VaultEventHandler(FileSystemEventHandler):
             try:
                 self._index_file(str(event.src_path))
             except Exception:
-                pass
+                _log.exception("watcher: failed to index created file %s", event.src_path)
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory and self._is_vault_md(str(event.src_path)):
             try:
                 self._index_file(str(event.src_path))
             except Exception:
-                pass
+                _log.exception("watcher: failed to index modified file %s", event.src_path)
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         if not event.is_directory and self._is_vault_md(str(event.src_path)):
             try:
                 self._remove_file(str(event.src_path))
             except Exception:
-                pass
+                _log.exception("watcher: failed to remove deleted file %s", event.src_path)
 
     def on_moved(self, event: FileSystemEvent) -> None:
         if event.is_directory:
@@ -82,7 +85,7 @@ class _VaultEventHandler(FileSystemEventHandler):
             if self._is_vault_md(str(event.dest_path)):
                 self._index_file(str(event.dest_path))
         except Exception:
-            pass
+            _log.exception("watcher: failed to handle move %s -> %s", event.src_path, event.dest_path)
 
 
 def start_watcher(vault: Path, db_vault: Path) -> Any:

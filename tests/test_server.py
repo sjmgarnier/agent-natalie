@@ -414,3 +414,59 @@ def test_contact_list_returns_list_of_dicts(vault: Path, config, monkeypatch: py
     assert all(isinstance(item, dict) for item in result)
     assert result[0]["slug"] == "alice"
     assert result[1]["slug"] == "bob"
+
+
+def test_memory_search_keyword_only_result_includes_collection(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with (
+        patch(
+            "natalie.server.mem.keyword_search",
+            return_value=[{"path": "a.md", "title": "A", "excerpt": "x", "collection": "global"}],
+        ),
+        patch("natalie.server.mem.semantic_search", return_value=[]),
+    ):
+        results = srv.memory_search("test")
+    assert len(results) == 1
+    assert "collection" in results[0]
+    assert results[0]["collection"] == "global"
+
+
+def test_task_complete_rejects_empty_task_text(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="task_text"):
+        srv.task_complete("tasks.md", "")
+
+
+def test_task_complete_rejects_whitespace_task_text(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="task_text"):
+        srv.task_complete("tasks.md", "   ")
+
+
+def test_task_update_rejects_empty_task_text(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="task_text"):
+        srv.task_update("tasks.md", "", new_text="New text")
+
+
+def test_task_update_rejects_whitespace_task_text(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="task_text"):
+        srv.task_update("tasks.md", "  ", new_text="New text")
