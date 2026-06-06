@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 CREATE INDEX IF NOT EXISTS tasks_path_idx ON tasks(path);
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_path_line_idx ON tasks(path, line);
 """
 
 

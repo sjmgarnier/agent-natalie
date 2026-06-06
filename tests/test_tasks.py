@@ -545,6 +545,14 @@ def test_discover_tasks_stores_none_for_invalid_due_date(vault):
     assert tasks[0]["overdue"] is False
 
 
+def test_index_tasks_no_duplicate_rows_on_double_call(vault, db):
+    write_note(vault, "dup.md", "- [ ] Task One\n")
+    index_tasks(db, vault, vault / "dup.md")
+    index_tasks(db, vault, vault / "dup.md")
+    rows = db.execute("SELECT * FROM tasks WHERE path = 'dup.md'").fetchall()
+    assert len(rows) == 1
+
+
 def test_index_tasks_commit_false_does_not_commit(vault, db):
     import sqlite3 as _sqlite3
 
