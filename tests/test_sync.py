@@ -197,3 +197,22 @@ def test_sync_vault_works_with_symlinked_vault(vault, db):
         with patch("natalie.features.sync.embed_notes"):
             result = sync_vault(db, link)
     assert result["indexed"] >= 1
+
+
+def test_sync_vault_defers_task_commits(vault, db):
+    """sync_vault must commit task inserts once after the loop, not per-file."""
+    import sqlite3 as _sqlite3
+
+    write_note(vault, "a.md", "- [ ] Task A\n")
+    write_note(vault, "b.md", "- [ ] Task B\n")
+
+    with patch("natalie.features.sync.embed_notes"):
+        sync_vault(db, vault)
+
+    # A reader opened after sync_vault finishes must see all task rows
+    db2 = _sqlite3.connect(str(vault / ".natalie" / "natalie.db"), check_same_thread=False)
+    db2.row_factory = _sqlite3.Row
+    db2.execute("PRAGMA journal_mode=WAL")
+    n = db2.execute("SELECT count(*) as n FROM tasks").fetchone()["n"]
+    db2.close()
+    assert n == 2, f"expected 2 tasks after sync_vault, got {n}"

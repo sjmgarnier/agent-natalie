@@ -33,7 +33,10 @@ def sync_vault(
     for p in md_files:
         if index_note(db, vault, p):
             indexed += 1
-        index_tasks(db, vault, p)
+        index_tasks(db, vault, p, commit=False)
+
+    # Commit all task inserts from the loop in one shot
+    db.commit()
 
     # Always reconcile deletions (not just on --full)
     indexed_paths = {p.relative_to(vault).as_posix() for p in md_files}

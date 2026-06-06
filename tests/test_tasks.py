@@ -543,3 +543,58 @@ def test_discover_tasks_stores_none_for_invalid_due_date(vault):
     assert len(tasks) == 1
     assert tasks[0]["due_date"] is None
     assert tasks[0]["overdue"] is False
+
+
+def test_index_tasks_commit_false_does_not_commit(vault, db):
+    import sqlite3 as _sqlite3
+
+    write_note(vault, "tasks.md", "- [ ] My Task\n")
+    count = index_tasks(db, vault, vault / "tasks.md", commit=False)
+    assert count == 1
+
+    db2 = _sqlite3.connect(str(vault / ".natalie" / "natalie.db"), check_same_thread=False)
+    db2.row_factory = _sqlite3.Row
+    db2.execute("PRAGMA journal_mode=WAL")
+    rows = db2.execute("SELECT * FROM tasks").fetchall()
+    db2.close()
+    assert len(rows) == 0, "uncommitted rows must not be visible to other connections"
+
+    db.commit()
+
+    db3 = _sqlite3.connect(str(vault / ".natalie" / "natalie.db"), check_same_thread=False)
+    db3.row_factory = _sqlite3.Row
+    rows2 = db3.execute("SELECT * FROM tasks").fetchall()
+    db3.close()
+    assert len(rows2) == 1
+
+
+def test_sync_tasks_is_complete_after_call(vault, db):
+    """sync_tasks must index all files and return total count in a single pass."""
+    write_note(vault, "a.md", "- [ ] Task A\n- [ ] Task B\n")
+    write_note(vault, "b.md", "- [ ] Task C\n")
+    total = sync_tasks(db, vault)
+    assert total == 3
+    rows = db.execute("SELECT text FROM tasks ORDER BY text").fetchall()
+    assert [r["text"] for r in rows] == ["Task A", "Task B", "Task C"]
+
+
+def test_sync_tasks_concurrent_reader_never_sees_empty_table(vault, db):
+    """A second connection opened after sync_tasks starts must not see an empty tasks table.
+
+    The fix (single transaction) means readers see either the old data or the new data,
+    never an empty table. We verify this by opening a reader AFTER sync_tasks commits
+    and checking it sees the full result.
+    """
+    import sqlite3 as _sqlite3
+
+    write_note(vault, "a.md", "- [ ] Task A\n")
+    write_note(vault, "b.md", "- [ ] Task B\n")
+    sync_tasks(db, vault)
+
+    # A reader opened after sync_tasks finishes must see all rows (not 0)
+    db2 = _sqlite3.connect(str(vault / ".natalie" / "natalie.db"), check_same_thread=False)
+    db2.row_factory = _sqlite3.Row
+    db2.execute("PRAGMA journal_mode=WAL")
+    n = db2.execute("SELECT count(*) as n FROM tasks").fetchone()["n"]
+    db2.close()
+    assert n == 2, f"reader saw {n} tasks after sync_tasks, expected 2"

@@ -275,7 +275,7 @@ def update_task(
     }
 
 
-def index_tasks(db: sqlite3.Connection, vault: Path, note_path: Path) -> int:
+def index_tasks(db: sqlite3.Connection, vault: Path, note_path: Path, *, commit: bool = True) -> int:
     """Parse tasks from a vault note and upsert into DB. Returns count of task rows written."""
     vault = vault.resolve()
     note_path = note_path.resolve()
@@ -284,7 +284,8 @@ def index_tasks(db: sqlite3.Connection, vault: Path, note_path: Path) -> int:
     db.execute("DELETE FROM tasks WHERE path = ?", (rel,))
 
     if not note_path.exists():
-        db.commit()
+        if commit:
+            db.commit()
         return 0
 
     text = note_path.read_text(encoding="utf-8")
@@ -295,25 +296,26 @@ def index_tasks(db: sqlite3.Connection, vault: Path, note_path: Path) -> int:
         done = 1 if "[x]" in marker.lower() else 0
         line = text[: m.start()].count("\n") + 1
         db.execute(
-            "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) "
+            "INSERT OR REPLACE INTO tasks (path, line, text, done, due_date, priority, recurrence) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (rel, line, parsed["text"], done, parsed["due_date"], parsed["priority"], parsed["recurrence"]),
         )
         count += 1
 
-    db.commit()
+    if commit:
+        db.commit()
     return count
 
 
 def sync_tasks(db: sqlite3.Connection, vault: Path) -> int:
-    """Re-index all tasks from vault notes. Returns total task rows written."""
+    """Re-index all tasks from vault notes in a single atomic transaction."""
     vault = vault.resolve()
-    db.execute("DELETE FROM tasks")
-    db.commit()
     md_files = [
         p for p in vault.rglob("*.md") if not any(part.startswith(".") for part in p.relative_to(vault).parts)
     ]
     total = 0
+    db.execute("DELETE FROM tasks")
     for p in md_files:
-        total += index_tasks(db, vault, p)
+        total += index_tasks(db, vault, p, commit=False)
+    db.commit()
     return total
