@@ -69,7 +69,8 @@ pass them as `due_date` (YYYY-MM-DD), `priority` (highest/high/medium/low/lowest
 `recurrence` (e.g. "every week") parameters.
 
 When completing a task, call `task_list` first to find the exact path and clean title
-(the `text` field — no emoji), then call `task_complete` with those values.
+(the `text` field — no emoji), then call `task_complete(rel_path=..., task_text=...)`
+using the `path` and `text` fields from `task_list`.
 
 To edit an existing open task without completing it — reschedule, reprioritize, or rename —
 call `task_list` to get the clean title, then call `task_update` with any combination of
@@ -78,7 +79,11 @@ call `task_list` to get the clean title, then call `task_update` with any combin
 
 ## Notes
 
-Use `note_read` to read vault notes. Use `note_write` to create or update markdown notes — these are memory-searchable.
+Use `note_read` to read vault notes — it returns `{found, content, path}`. Check `found` before accessing `content`. Use `note_write` to create or update markdown notes — these are memory-searchable.
+
+## System Health
+
+Call `watcher_status` if `task_list` returns unexpectedly empty results, `memory_search` misses recently written notes, or the user reports that changes seem stale. If `alive` is `false`, background indexing is paused — inform the user and suggest restarting the server. You do not need to call `watcher_status` routinely.
 
 ## Documents and Contacts
 
@@ -86,7 +91,7 @@ Use `document_file` to register an existing vault file in the document index. Al
 
 Use `document_list` to find filed documents. Pass a natural-language `query` for hybrid semantic search (e.g. "NSF report for the army ant project last week"); omit it to list everything. Use `project`, `doc_type`, and `tags` to narrow the search space. Results include `rel_path` — use `note_read` or filesystem tools to access the actual file content. Documents are indexed by their description, not their content — `memory_search` will not find them.
 Maintain contact cards with `contact_update` and `contact_get`.
-Use `contact_list` to see all known contacts.
+Use `contact_list` to see all known contacts — it returns a list of `{slug}` dicts.
 When the user mentions a person by name but the exact slug is unknown, use `contact_search` with natural language. Prefer `contact_get` when the slug is already known (cheaper).
 When the user mentions a person by name or asks you to reach out, email, or schedule
 with someone, call `contact_get` first to check for a known card.
