@@ -362,3 +362,55 @@ def test_task_list_overdue_flag(vault, db):
 
     result = srv.task_list()
     assert result[0]["overdue"] is True
+
+
+# ---------------------------------------------------------------------------
+# Return type contract tests (Task 4)
+# ---------------------------------------------------------------------------
+
+
+def test_ping_returns_dict(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    result = srv.ping()
+    assert isinstance(result, dict)
+    assert result["status"] == "ok"
+    assert "vault" in result
+
+
+def test_watcher_status_none_observer_returns_full_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_observer", None)
+    result = srv.watcher_status()
+    assert result["alive"] is False
+    assert "path" in result
+    assert "recursive" in result
+    assert "thread_ident" in result
+    assert "daemon" in result
+    assert "error" not in result
+
+
+def test_note_read_returns_dict_when_found(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    (vault / "hello.md").write_text("# Hello", encoding="utf-8")
+    result = srv.note_read("hello.md")
+    assert isinstance(result, dict)
+    assert result["found"] is True
+    assert result["content"] == "# Hello"
+    assert result["path"] == "hello.md"
+
+
+def test_note_read_returns_dict_when_missing(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    result = srv.note_read("no-such-note.md")
+    assert isinstance(result, dict)
+    assert result["found"] is False
+    assert result["content"] is None
+
+
+def test_contact_list_returns_list_of_dicts(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_config", config)
+    with patch("natalie.server.contacts_mod.list_contacts", return_value=["alice", "bob"]):
+        result = srv.contact_list()
+    assert all(isinstance(item, dict) for item in result)
+    assert result[0]["slug"] == "alice"
+    assert result[1]["slug"] == "bob"

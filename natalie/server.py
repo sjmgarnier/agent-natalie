@@ -51,17 +51,17 @@ def _get_db() -> sqlite3.Connection:
 
 
 @mcp.tool()
-def ping() -> str:
+def ping() -> dict[str, Any]:
     """Check that the Natalie server is running and return vault path."""
     vault = _get_vault()
-    return f"pong — vault: {vault}"
+    return {"status": "ok", "vault": str(vault)}
 
 
 @mcp.tool()
 def watcher_status() -> dict[str, Any]:
     """Return the status of the vault file-watcher daemon."""
     if _observer is None:
-        return {"alive": False, "error": "watcher not started"}
+        return {"alive": False, "path": None, "recursive": None, "thread_ident": None, "daemon": None}
     try:
         emitters = list(_observer.emitters)
     except RuntimeError:
@@ -179,13 +179,15 @@ def memory_store(
 
 
 @mcp.tool()
-def note_read(path: str) -> str | None:
-    """Read a vault note by relative path. Returns content or None if not found."""
+def note_read(path: str) -> dict[str, Any]:
+    """Read a vault note by relative path. Returns {found, content, path}."""
     if not path.strip():
         raise ValueError("path must not be empty")
     vault = _get_vault()
     full = safe_join(vault, path)
-    return full.read_text(encoding="utf-8") if full.exists() else None
+    if not full.exists():
+        return {"found": False, "content": None, "path": path}
+    return {"found": True, "content": full.read_text(encoding="utf-8"), "path": path}
 
 
 @mcp.tool()
@@ -390,9 +392,10 @@ def contact_update(slug: str, fields: dict[str, Any]) -> dict[str, Any]:
 
 
 @mcp.tool()
-def contact_list() -> list[str]:
-    """List all contact slugs."""
-    return contacts_mod.list_contacts(_get_vault(), _get_config())
+def contact_list() -> list[dict[str, Any]]:
+    """List all contacts as a list of dicts with at least a 'slug' key."""
+    slugs = contacts_mod.list_contacts(_get_vault(), _get_config())
+    return [{"slug": s} for s in slugs]
 
 
 @mcp.tool()
