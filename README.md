@@ -6,8 +6,8 @@
 
 A portable personal assistant MCP server for AI coding agents. Natalie lives in your Obsidian vault — memory, tasks, contacts, and conventions stay fully local and offline, no cloud or external API required.
 
-Tested with Claude Code and OpenCode. Any MCP-compatible agent client
-should work — see [Connecting your agent](#connecting-your-agent) below.
+Tested with Claude Code, OpenCode, and Mistral Vibe. Any MCP-compatible agent
+client should work — see [Connecting your agent](#connecting-your-agent) below.
 
 ## What it does
 
@@ -94,11 +94,8 @@ Click **Dashboard.md** in the vault root. Switch to Reading view if it doesn't r
 ## Connecting your agent
 
 `natalie-server` is a standard MCP server. Any MCP-compatible agent client can use it.
-`natalie init` pre-wires **Claude Code** and **OpenCode** automatically; for other clients
-follow the generic instructions below.
-
-> **Compatibility note:** Natalie has been tested with Claude Code and OpenCode.
-> Other MCP clients should work but have not been verified.
+`natalie init` pre-wires **Claude Code**, **OpenCode**, and **Mistral Vibe** automatically;
+for other clients follow the generic instructions below.
 
 ### Claude Code
 
@@ -124,6 +121,20 @@ opencode
 
 OpenCode reads `opencode.json` and connects to `natalie-server` automatically.
 `natalie sync` runs automatically as a post-tool-use hook after every tool call.
+
+### Mistral Vibe
+
+Start Mistral Vibe from inside the vault directory:
+
+```bash
+cd /path/to/your/vault
+vibe
+```
+
+Mistral Vibe reads `.vibe/config.toml` and connects to `natalie-server` automatically.
+If you enabled experimental hooks during `natalie init`, `natalie sync` runs automatically
+after every agent turn (requires Mistral Vibe v2.9.0+). Otherwise, run `natalie sync`
+manually after sessions that modify vault files.
 
 ### Other MCP clients
 
@@ -161,6 +172,8 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 |------|-------------|
 | `ping` | Check that the server is running |
 | `watcher_status` | Inspect vault watcher daemon health (alive, path, thread ident) |
+| `note_list` | List indexed vault notes; optional `directory` filter |
+| `vault_stats` | Index health dashboard: note count, open tasks, embedding coverage, last sync |
 | `memory_search` | Hybrid FTS + semantic search across vault notes |
 | `memory_store` | Store an outside-vault knowledge entry |
 | `note_read` | Read a vault note by path |
