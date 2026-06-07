@@ -342,6 +342,60 @@ def test_init_does_not_duplicate_vibe_hooks(tmp_path):
     assert len(natalie_hooks) == 1
 
 
+def test_init_carries_global_vibe_mcp_servers(tmp_path, monkeypatch):
+    """Global ~/.vibe/config.toml mcp_servers must survive into the project config."""
+    from pathlib import Path
+
+    import tomli_w
+
+    # Fake a global ~/.vibe/config.toml with a non-natalie MCP
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    global_vibe = fake_home / ".vibe"
+    global_vibe.mkdir()
+    (global_vibe / "config.toml").write_bytes(
+        tomli_w.dumps(
+            {"mcp_servers": [{"name": "github", "transport": "stdio", "command": "github-mcp"}]}
+        ).encode()
+    )
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    servers = {s["name"]: s for s in cfg.get("mcp_servers", [])}
+    assert "natalie" in servers, "natalie MCP missing"
+    assert "github" in servers, "global github MCP was dropped"
+
+
+def test_init_global_vibe_mcp_does_not_override_natalie(tmp_path, monkeypatch):
+    """A global entry named 'natalie' must not overwrite the project's natalie entry."""
+    from pathlib import Path
+
+    import tomli_w
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    global_vibe = fake_home / ".vibe"
+    global_vibe.mkdir()
+    (global_vibe / "config.toml").write_bytes(
+        tomli_w.dumps(
+            {"mcp_servers": [{"name": "natalie", "transport": "stdio", "command": "wrong-path"}]}
+        ).encode()
+    )
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+
+    runner.invoke(app, ["init", str(tmp_path), "--venv-path", "/my/venv"], input="y\n")
+
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    servers = {s["name"]: s for s in cfg.get("mcp_servers", [])}
+    assert servers["natalie"]["command"] != "wrong-path", "global natalie entry overwrote project entry"
+
+
 def test_init_skips_hooks_prompt_when_already_enabled(tmp_path):
     """Second run must detect enable_experimental_hooks=true and skip the prompt."""
     import tomli_w

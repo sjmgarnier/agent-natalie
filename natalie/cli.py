@@ -361,6 +361,24 @@ def init(
     }
     if enable_vibe_hooks:
         vibe_cfg["enable_experimental_hooks"] = True
+
+    # Mistral Vibe gives the project config full precedence with no fallback
+    # merge — globally configured mcp_servers are silently dropped when a
+    # project config exists.  Carry them forward here so the user doesn't lose
+    # MCPs they set up in ~/.vibe/config.toml.  Natalie's own entry wins on
+    # name clashes.
+    global_vibe_path = Path.home() / ".vibe" / "config.toml"
+    if global_vibe_path.exists() and global_vibe_path != vibe_config_path:
+        try:
+            with open(global_vibe_path, "rb") as f:
+                global_vibe_cfg = tomllib.load(f)
+            natalie_names = {s.get("name") for s in vibe_cfg.get("mcp_servers", [])}
+            for server in global_vibe_cfg.get("mcp_servers", []):
+                if server.get("name") not in natalie_names:
+                    vibe_cfg["mcp_servers"].append(server)
+        except (tomllib.TOMLDecodeError, OSError):
+            pass
+
     _merge_toml(vibe_config_path, vibe_cfg)
 
     if enable_vibe_hooks:
