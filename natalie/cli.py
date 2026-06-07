@@ -363,23 +363,24 @@ def init(
         vibe_cfg["enable_experimental_hooks"] = True
 
     # Mistral Vibe gives the project config full precedence with no fallback
-    # merge — globally configured mcp_servers are silently dropped when a
-    # project config exists.  Carry them forward here so the user doesn't lose
-    # MCPs they set up in ~/.vibe/config.toml.  Natalie's own entry wins on
-    # name clashes.
+    # merge — the global ~/.vibe/config.toml is silently ignored when a project
+    # config exists.  We compensate by copying the global config as the base so
+    # all user settings (models, providers, mcp_servers, etc.) are preserved.
+    # Layering: global → existing project config (user overrides) → natalie's additions.
     global_vibe_path = Path.home() / ".vibe" / "config.toml"
     if global_vibe_path.exists() and global_vibe_path != vibe_config_path:
         try:
             with open(global_vibe_path, "rb") as f:
-                global_vibe_cfg = tomllib.load(f)
-            natalie_names = {s.get("name") for s in vibe_cfg.get("mcp_servers", [])}
-            for server in global_vibe_cfg.get("mcp_servers", []):
-                if server.get("name") not in natalie_names:
-                    vibe_cfg["mcp_servers"].append(server)
+                global_vibe_cfg: dict[str, Any] = dict(tomllib.load(f))
         except (tomllib.TOMLDecodeError, OSError):
-            pass
+            global_vibe_cfg = {}
+    else:
+        global_vibe_cfg = {}
 
-    _merge_toml(vibe_config_path, vibe_cfg)
+    new_vibe_cfg = dict(global_vibe_cfg)
+    _deep_merge_toml(new_vibe_cfg, existing_vibe_cfg)
+    _deep_merge_toml(new_vibe_cfg, vibe_cfg)
+    vibe_config_path.write_bytes(tomli_w.dumps(new_vibe_cfg).encode())
 
     if enable_vibe_hooks:
         _merge_toml(

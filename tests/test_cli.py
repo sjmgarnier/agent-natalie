@@ -343,7 +343,7 @@ def test_init_does_not_duplicate_vibe_hooks(tmp_path):
 
 
 def test_init_carries_global_vibe_mcp_servers(tmp_path, monkeypatch):
-    """Global ~/.vibe/config.toml mcp_servers must survive into the project config."""
+    """Global ~/.vibe/config.toml settings (including mcp_servers) must survive into the project config."""
     from pathlib import Path
 
     import tomli_w
@@ -394,6 +394,30 @@ def test_init_global_vibe_mcp_does_not_override_natalie(tmp_path, monkeypatch):
         cfg = _tomllib.load(f)
     servers = {s["name"]: s for s in cfg.get("mcp_servers", [])}
     assert servers["natalie"]["command"] != "wrong-path", "global natalie entry overwrote project entry"
+
+
+def test_init_carries_global_vibe_non_mcp_settings(tmp_path, monkeypatch):
+    """Global ~/.vibe/config.toml settings beyond mcp_servers (e.g. model) must survive."""
+    from pathlib import Path
+
+    import tomli_w
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    global_vibe = fake_home / ".vibe"
+    global_vibe.mkdir()
+    (global_vibe / "config.toml").write_bytes(
+        tomli_w.dumps({"model": "mistral-large-latest", "temperature": 0.3}).encode()
+    )
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    assert cfg.get("model") == "mistral-large-latest", "global model setting was dropped"
+    assert cfg.get("temperature") == 0.3, "global temperature setting was dropped"
 
 
 def test_init_skips_hooks_prompt_when_already_enabled(tmp_path):
