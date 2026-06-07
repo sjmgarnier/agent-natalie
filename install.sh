@@ -27,7 +27,7 @@ _install_skills() {
     mkdir -p "$vault_path/.opencode/skills"
     for skill_dir in "$skills_src"/*/; do
         [[ -d "$skill_dir" ]] || continue
-        local skill_name="natalie-$(basename "$skill_dir")"
+        local skill_name="$(basename "$skill_dir")"
         cp -r "$skill_dir" "$vault_path/.claude/skills/$skill_name"
         cp -r "$skill_dir" "$vault_path/.opencode/skills/$skill_name"
         echo "  Installed: $skill_name"
