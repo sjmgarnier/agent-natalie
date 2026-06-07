@@ -223,6 +223,31 @@ def test_init_does_not_duplicate_hooks(tmp_path):
     assert len(hooks) == 1, f"Expected 1 PostToolUse hook entry, got {len(hooks)}: {hooks}"
 
 
+def test_init_preserves_non_natalie_hooks(tmp_path):
+    """natalie init must not wipe user-defined hooks from other tools."""
+    import json
+
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = {
+        "hooks": {
+            "PostToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo done"}]}],
+            "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "echo pre"}]}],
+        }
+    }
+    settings_path.write_text(json.dumps(existing), encoding="utf-8")
+
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+
+    settings = json.loads(settings_path.read_text())
+    post = settings.get("hooks", {}).get("PostToolUse", [])
+    pre = settings.get("hooks", {}).get("PreToolUse", [])
+    commands = [h.get("command", "") for entry in post for h in entry.get("hooks", [])]
+    assert any("natalie" in c for c in commands), "natalie hook missing"
+    assert any("echo done" in c for c in commands), "existing PostToolUse hook was wiped"
+    assert len(pre) == 1, "PreToolUse hooks were wiped"
+
+
 # ---------------------------------------------------------------------------
 # Mistral Vibe integration
 # ---------------------------------------------------------------------------

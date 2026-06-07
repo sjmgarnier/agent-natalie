@@ -284,7 +284,7 @@ def init(
     }
     _merge_json(vault / ".mcp.json", mcp_json)
 
-    # .claude/settings.json — always replace hooks to prevent duplicate accumulation
+    # .claude/settings.json — merge natalie PostToolUse hook, preserve all other hooks
     settings_path = vault / ".claude" / "settings.json"
     if settings_path.exists():
         try:
@@ -293,14 +293,25 @@ def init(
             existing_settings = {}
     else:
         existing_settings = {}
-    existing_settings["hooks"] = {
-        "PostToolUse": [
-            {
-                "matcher": "*",
-                "hooks": [{"type": "command", "command": f"{natalie_bin} sync"}],
-            }
-        ]
+    natalie_hook_entry: dict[str, Any] = {
+        "matcher": "*",
+        "hooks": [{"type": "command", "command": f"{natalie_bin} sync"}],
     }
+    existing_hooks = existing_settings.setdefault("hooks", {})
+    post_tool_use: list[Any] = existing_hooks.setdefault("PostToolUse", [])
+    natalie_idx = next(
+        (
+            i
+            for i, entry in enumerate(post_tool_use)
+            if isinstance(entry, dict)
+            and any(isinstance(h, dict) and "natalie" in h.get("command", "") for h in entry.get("hooks", []))
+        ),
+        None,
+    )
+    if natalie_idx is not None:
+        post_tool_use[natalie_idx] = natalie_hook_entry
+    else:
+        post_tool_use.append(natalie_hook_entry)
     settings_path.write_text(json.dumps(existing_settings, indent=2), encoding="utf-8")
 
     opencode_cfg = {
