@@ -157,6 +157,51 @@ def _merge_json(path: Path, update: dict[str, Any]) -> None:
     path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
 
+def _deep_merge_toml(base: dict[str, Any], update: dict[str, Any]) -> None:
+    """Recursively merge *update* into *base* in-place.
+
+    Arrays of dicts with a ``name`` key are merged by that key so repeated
+    ``natalie init`` runs never accumulate duplicate entries. Other lists
+    append unique items.
+    """
+    for key, value in update.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_merge_toml(base[key], value)
+        elif key in base and isinstance(base[key], list) and isinstance(value, list):
+            if value and isinstance(value[0], dict) and "name" in value[0]:
+                existing_by_name = {
+                    item["name"]: idx
+                    for idx, item in enumerate(base[key])
+                    if isinstance(item, dict) and "name" in item
+                }
+                for item in value:
+                    name = item.get("name")
+                    if name in existing_by_name:
+                        base[key][existing_by_name[name]].update(item)
+                    else:
+                        base[key].append(item)
+            else:
+                for item in value:
+                    if item not in base[key]:
+                        base[key].append(item)
+        else:
+            base[key] = value
+
+
+def _merge_toml(path: Path, update: dict[str, Any]) -> None:
+    """Read existing TOML if present, deep-merge *update* into it, write back."""
+    if path.exists():
+        try:
+            with open(path, "rb") as f:
+                existing: dict[str, Any] = dict(tomllib.load(f))
+        except (tomllib.TOMLDecodeError, OSError):
+            existing = {}
+    else:
+        existing = {}
+    _deep_merge_toml(existing, update)
+    path.write_bytes(tomli_w.dumps(existing).encode())
+
+
 @app.command()
 def init(
     vault_path: str = typer.Argument(..., help="Path to the Obsidian vault (created if missing)."),
@@ -274,6 +319,48 @@ def init(
     hooks_cfg = {"tool.execute.after": {"command": f"{natalie_bin} sync"}}
     # .opencode/hooks.json — merge
     _merge_json(vault / ".opencode" / "hooks.json", hooks_cfg)
+
+    # .vibe/ — Mistral Vibe
+    (vault / ".vibe").mkdir(parents=True, exist_ok=True)
+
+    vibe_config_path = vault / ".vibe" / "config.toml"
+    existing_vibe_cfg: dict[str, Any] = {}
+    if vibe_config_path.exists():
+        try:
+            with open(vibe_config_path, "rb") as f:
+                existing_vibe_cfg = dict(tomllib.load(f))
+        except (tomllib.TOMLDecodeError, OSError):
+            pass
+
+    if existing_vibe_cfg.get("enable_experimental_hooks"):
+        enable_vibe_hooks = True
+    else:
+        typer.echo(
+            "\nMistral Vibe supports an experimental post-agent-turn hook system (v2.9.0+).\n"
+            "  Enabled:  Natalie auto-indexes the vault after every agent turn.\n"
+            "  Disabled: You must run 'natalie sync' manually after Mistral Vibe\n"
+            "            edits vault files for changes to appear in search results."
+        )
+        enable_vibe_hooks = typer.confirm("Enable experimental Mistral Vibe hooks?", default=True)
+
+    skills_src = str(Path(__file__).parent / "skills")
+    vibe_cfg: dict[str, Any] = {
+        "mcp_servers": [{"name": "natalie", "transport": "stdio", "command": server_bin}],
+        "skills": {"skill_paths": [skills_src]},
+    }
+    if enable_vibe_hooks:
+        vibe_cfg["enable_experimental_hooks"] = True
+    _merge_toml(vibe_config_path, vibe_cfg)
+
+    if enable_vibe_hooks:
+        _merge_toml(
+            vault / ".vibe" / "hooks.toml",
+            {
+                "hooks": [
+                    {"name": "natalie-sync", "type": "post_agent_turn", "command": f"{natalie_bin} sync"}
+                ]
+            },
+        )
 
     typer.echo(f"Vault initialized at: {vault}")
     typer.echo(f"Next step: from {vault}, run 'natalie sync --full' to build the initial search index.")

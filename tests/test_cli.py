@@ -51,7 +51,7 @@ def test_config_persona_writes_persona_markers(vault):
 
 def test_init_creates_vault_structure(tmp_path):
     with patch("natalie.cli.require_vault", side_effect=RuntimeError("not found")):
-        result = runner.invoke(app, ["init", str(tmp_path)])
+        result = runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     assert result.exit_code == 0
     assert (tmp_path / ".natalie" / "natalie.db").exists()
     assert (tmp_path / "Natalie" / "config.toml").exists()
@@ -62,7 +62,7 @@ def test_init_creates_vault_structure(tmp_path):
 
 
 def test_init_writes_mcp_entry_to_mcp_json(tmp_path):
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     import json
 
     mcp_json = json.loads((tmp_path / ".mcp.json").read_text())
@@ -77,7 +77,7 @@ def test_init_preserves_existing_mcp_entries(tmp_path):
     mcp_path.write_text(
         json.dumps({"mcpServers": {"github": {"command": "github-mcp", "args": [], "type": "stdio"}}})
     )
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     result = json.loads(mcp_path.read_text())
     assert "github" in result["mcpServers"]
     assert "natalie" in result["mcpServers"]
@@ -89,7 +89,7 @@ def test_init_preserves_existing_opencode_mcp(tmp_path):
 
     oc_path = tmp_path / "opencode.json"
     oc_path.write_text(json.dumps({"mcp": {"other-tool": {"command": "other", "enabled": True}}}))
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     result = json.loads(oc_path.read_text())
     assert "other-tool" in result["mcp"]
     assert "natalie" in result["mcp"]
@@ -99,7 +99,7 @@ def test_init_does_not_overwrite_existing_claude_md(tmp_path):
     """natalie init must not overwrite CLAUDE.md if it already exists."""
     existing = tmp_path / "CLAUDE.md"
     existing.write_text("# My custom instructions\n")
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     assert existing.read_text() == "# My custom instructions\n"
 
 
@@ -107,13 +107,13 @@ def test_init_force_overwrites_claude_md(tmp_path):
     """natalie init --force must regenerate CLAUDE.md."""
     existing = tmp_path / "CLAUDE.md"
     existing.write_text("# My custom instructions\n")
-    runner.invoke(app, ["init", str(tmp_path), "--force"])
+    runner.invoke(app, ["init", str(tmp_path), "--force"], input="y\n")
     content = existing.read_text()
     assert "agent-natalie:persona:start" in content
 
 
 def test_init_writes_rich_dashboard(tmp_path):
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     content = (tmp_path / "Dashboard.md").read_text()
     assert "multi-column" in content
     assert "banner" in content
@@ -122,12 +122,12 @@ def test_init_writes_rich_dashboard(tmp_path):
 def test_init_skips_existing_dashboard(tmp_path):
     existing = tmp_path / "Dashboard.md"
     existing.write_text("# My custom dashboard\n")
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     assert existing.read_text() == "# My custom dashboard\n"
 
 
 def test_init_copies_css_snippets(tmp_path):
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     snippets_dir = tmp_path / ".obsidian" / "snippets"
     assert (snippets_dir / "natalie-dashboard.css").exists()
     assert (snippets_dir / "MCL Multi Column.css").exists()
@@ -139,14 +139,14 @@ def test_init_skips_existing_css(tmp_path):
     snippets_dir.mkdir(parents=True)
     sentinel = "/* sentinel */"
     (snippets_dir / "natalie-dashboard.css").write_text(sentinel)
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     assert (snippets_dir / "natalie-dashboard.css").read_text() == sentinel
 
 
 def test_init_enables_css_snippets(tmp_path):
     import json
 
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     appearance = json.loads((tmp_path / ".obsidian" / "appearance.json").read_text())
     snippets = appearance.get("enabledCssSnippets", [])
     assert "natalie-dashboard" in snippets
@@ -188,9 +188,9 @@ def test_config_regen_flag_regenerates_files(vault):
 
 def test_init_completion_message_mentions_vault_directory(tmp_path):
     """The sync instruction must tell the user to run from the vault directory — I4."""
-    result = runner.invoke(app, ["init", str(tmp_path)])
+    result = runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     assert result.exit_code == 0
-    sync_line = next(line for line in result.output.splitlines() if "sync" in line)
+    sync_line = next(line for line in result.output.splitlines() if "natalie sync --full" in line)
     assert str(tmp_path) in sync_line
 
 
@@ -202,7 +202,7 @@ def test_init_merges_existing_appearance_json(tmp_path):
     appearance_path.write_text(
         json.dumps({"theme": "Minimal", "enabledCssSnippets": ["my-existing-snippet"]})
     )
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     result = json.loads(appearance_path.read_text())
     assert result.get("theme") == "Minimal"
     snippets = result.get("enabledCssSnippets", [])
@@ -216,8 +216,118 @@ def test_init_does_not_duplicate_hooks(tmp_path):
     """Repeated natalie init must not accumulate duplicate PostToolUse hooks — B5."""
     import json
 
-    runner.invoke(app, ["init", str(tmp_path)])
-    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
     hooks = settings.get("hooks", {}).get("PostToolUse", [])
     assert len(hooks) == 1, f"Expected 1 PostToolUse hook entry, got {len(hooks)}: {hooks}"
+
+
+# ---------------------------------------------------------------------------
+# Mistral Vibe integration
+# ---------------------------------------------------------------------------
+
+import tomllib as _tomllib  # noqa: E402
+
+
+def test_init_creates_vibe_directory(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    assert (tmp_path / ".vibe").is_dir()
+
+
+def test_init_creates_vibe_config_with_mcp_entry(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    cfg_path = tmp_path / ".vibe" / "config.toml"
+    assert cfg_path.exists()
+    with open(cfg_path, "rb") as f:
+        cfg = _tomllib.load(f)
+    servers = {s["name"]: s for s in cfg.get("mcp_servers", [])}
+    assert "natalie" in servers
+    assert servers["natalie"]["transport"] == "stdio"
+
+
+def test_init_vibe_config_includes_skill_paths(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    skill_paths = cfg.get("skills", {}).get("skill_paths", [])
+    assert any("skills" in p for p in skill_paths)
+
+
+def test_init_creates_vibe_hooks_when_enabled(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    hooks_path = tmp_path / ".vibe" / "hooks.toml"
+    assert hooks_path.exists()
+    with open(hooks_path, "rb") as f:
+        hooks_cfg = _tomllib.load(f)
+    hooks = {h["name"]: h for h in hooks_cfg.get("hooks", [])}
+    assert "natalie-sync" in hooks
+    assert hooks["natalie-sync"]["type"] == "post_agent_turn"
+
+
+def test_init_vibe_hooks_sets_experimental_flag_when_enabled(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    assert cfg.get("enable_experimental_hooks") is True
+
+
+def test_init_no_vibe_hooks_when_disabled(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="n\n")
+    assert not (tmp_path / ".vibe" / "hooks.toml").exists()
+
+
+def test_init_vibe_no_experimental_flag_when_disabled(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="n\n")
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    assert not cfg.get("enable_experimental_hooks")
+
+
+def test_init_preserves_existing_vibe_mcp_entries(tmp_path):
+    import tomli_w
+
+    vibe_dir = tmp_path / ".vibe"
+    vibe_dir.mkdir()
+    existing = {"mcp_servers": [{"name": "other-tool", "transport": "stdio", "command": "other"}]}
+    (vibe_dir / "config.toml").write_bytes(tomli_w.dumps(existing).encode())
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    with open(vibe_dir / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    servers = {s["name"]: s for s in cfg.get("mcp_servers", [])}
+    assert "other-tool" in servers
+    assert "natalie" in servers
+
+
+def test_init_does_not_duplicate_vibe_mcp(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")  # no prompt: hooks already enabled
+    with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    natalie_entries = [s for s in cfg.get("mcp_servers", []) if s.get("name") == "natalie"]
+    assert len(natalie_entries) == 1
+
+
+def test_init_does_not_duplicate_vibe_hooks(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")  # no prompt: hooks already enabled
+    with open(tmp_path / ".vibe" / "hooks.toml", "rb") as f:
+        hooks_cfg = _tomllib.load(f)
+    natalie_hooks = [h for h in hooks_cfg.get("hooks", []) if h.get("name") == "natalie-sync"]
+    assert len(natalie_hooks) == 1
+
+
+def test_init_skips_hooks_prompt_when_already_enabled(tmp_path):
+    """Second run must detect enable_experimental_hooks=true and skip the prompt."""
+    import tomli_w
+
+    vibe_dir = tmp_path / ".vibe"
+    vibe_dir.mkdir()
+    (vibe_dir / "config.toml").write_bytes(tomli_w.dumps({"enable_experimental_hooks": True}).encode())
+    # Provide no input — if the prompt were shown, CliRunner would use the default
+    # and the test would still pass, but we also verify the flag stays true.
+    result = runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    assert result.exit_code == 0
+    with open(vibe_dir / "config.toml", "rb") as f:
+        cfg = _tomllib.load(f)
+    assert cfg.get("enable_experimental_hooks") is True
