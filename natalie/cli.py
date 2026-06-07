@@ -7,6 +7,7 @@ from typing import Any
 
 import tomli_w
 import typer
+from ruamel.yaml import YAML as _YAML
 
 from .config import load_config
 from .db import get_db, init_db
@@ -200,6 +201,27 @@ def _merge_toml(path: Path, update: dict[str, Any]) -> None:
         existing = {}
     _deep_merge_toml(existing, update)
     path.write_bytes(tomli_w.dumps(existing).encode())
+
+
+def _merge_yaml(path: Path, update: dict[str, Any]) -> None:
+    """Read existing YAML if present, deep-merge update into it, write back.
+
+    Uses ruamel.yaml in round-trip mode to preserve user comments and formatting.
+    """
+    yaml = _YAML()
+    yaml.preserve_quotes = True
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8") as f:
+                existing: Any = yaml.load(f) or {}
+        except Exception:  # noqa: BLE001
+            existing = {}
+    else:
+        existing = {}
+    _deep_merge(existing, update)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(existing, f)
 
 
 @app.command()
