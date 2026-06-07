@@ -245,6 +245,8 @@ def init(
         vault / "Natalie" / "personas",
         vault / "Natalie" / "Documents",
         vault / "Natalie" / "Contacts",
+        vault / ".agents" / "plugins" / "natalie" / "hooks",
+        vault / ".agents" / "plugins" / "natalie" / "skills" / "natalie-contact-enrichment",
     ]:
         d.mkdir(parents=True, exist_ok=True)
 
@@ -413,6 +415,52 @@ def init(
                 ]
             },
         )
+
+    # Goose — global ~/.config/goose/config.yaml (MCP extension)
+    goose_config_dir = Path.home() / ".config" / "goose"
+    goose_config_dir.mkdir(parents=True, exist_ok=True)
+    goose_ext: dict[str, Any] = {
+        "extensions": {
+            "natalie": {
+                "name": "natalie",
+                "cmd": server_bin,
+                "args": [],
+                "enabled": True,
+                "type": "stdio",
+                "timeout": 300,
+            }
+        }
+    }
+    _merge_yaml(goose_config_dir / "config.yaml", goose_ext)
+
+    # Goose — project plugin: plugin.json
+    goose_plugin_dir = vault / ".agents" / "plugins" / "natalie"
+    goose_plugin_manifest: dict[str, Any] = {
+        "name": "natalie",
+        "version": __version__,
+        "description": "Natalie personal assistant — sync hook and skills for Goose",
+    }
+    (goose_plugin_dir / "plugin.json").write_text(
+        json.dumps(goose_plugin_manifest, indent=2), encoding="utf-8"
+    )
+
+    # Goose — project plugin: hooks/hooks.json
+    goose_hooks: dict[str, Any] = {
+        "hooks": {
+            "PostToolUse": [
+                {
+                    "matcher": ".*",
+                    "hooks": [{"type": "command", "command": f"{natalie_bin} sync", "timeout": 30}],
+                }
+            ]
+        }
+    }
+    _merge_json(goose_plugin_dir / "hooks" / "hooks.json", goose_hooks)
+
+    # Goose — project plugin: companion skill (copy from installed package)
+    skill_src = Path(__file__).parent / "skills" / "natalie-contact-enrichment" / "SKILL.md"
+    skill_dst = goose_plugin_dir / "skills" / "natalie-contact-enrichment" / "SKILL.md"
+    skill_dst.write_text(skill_src.read_text(encoding="utf-8"), encoding="utf-8")
 
     typer.echo(f"Vault initialized at: {vault}")
     typer.echo(f"Next step: from {vault}, run 'natalie sync --full' to build the initial search index.")
