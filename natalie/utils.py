@@ -10,3 +10,12 @@ def safe_join(base: Path, user_part: str) -> Path:
     if not full.is_relative_to(base_resolved):
         raise ValueError(f"path escapes base directory: {user_part!r}")
     return full
+
+
+def require_md_path(path: str, hint: str = "") -> None:
+    """Raise ValueError if path does not end with .md."""
+    if not path.lower().endswith(".md"):
+        msg = f"Only .md files are accepted; '{path}' is not a Markdown file."
+        if hint:
+            msg += f" {hint}"
+        raise ValueError(msg)
