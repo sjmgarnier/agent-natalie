@@ -82,9 +82,10 @@ fi
 # ── Confirm ───────────────────────────────────────────────────────────────────
 echo ""
 echo "natalie will configure the following in: $VAULT_PATH"
-echo "  .mcp.json, .claude/settings.json       (Claude Code)"
-echo "  opencode.json, .opencode/hooks.json    (OpenCode)"
-echo "  .vibe/config.toml, .vibe/hooks.toml    (Mistral Vibe)"
+echo "  .mcp.json, .claude/settings.json              (Claude Code)"
+echo "  opencode.json, .opencode/hooks.json           (OpenCode)"
+echo "  .vibe/config.toml, .vibe/hooks.toml           (Mistral Vibe)"
+echo "  ~/.config/goose/config.yaml, .agents/plugins/ (Goose)"
 if [[ "$IS_UPGRADE" == false ]]; then
     echo "  Dashboard.md, CLAUDE.md, AGENTS.md     (created if absent)"
     echo "  .obsidian/snippets/                    (3 CSS files, created if absent)"
@@ -150,6 +151,7 @@ if [[ "$IS_UPGRADE" == true ]]; then
     echo "       cd '$VAULT_PATH' && claude     # Claude Code"
     echo "       cd '$VAULT_PATH' && opencode   # OpenCode"
     echo "       cd '$VAULT_PATH' && vibe       # Mistral Vibe"
+    echo "       cd '$VAULT_PATH' && goose      # Goose"
     echo ""
     echo "  To configure additional vaults: run 'natalie init <path>' directly."
 else
@@ -177,7 +179,8 @@ else
     echo "       cd '$VAULT_PATH' && claude     # Claude Code"
     echo "       cd '$VAULT_PATH' && opencode   # OpenCode"
     echo "       cd '$VAULT_PATH' && vibe       # Mistral Vibe"
-    echo "     Both read their config files and connect to natalie-server automatically."
+    echo "       cd '$VAULT_PATH' && goose      # Goose"
+    echo "     Each reads its config files and connects to natalie-server automatically."
     echo "     The natalie tools (memory_search, note_write, task_list, …) will appear"
     echo "     in the tool list."
     echo ""

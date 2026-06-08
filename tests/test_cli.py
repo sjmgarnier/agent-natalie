@@ -194,6 +194,16 @@ def test_init_completion_message_mentions_vault_directory(tmp_path):
     assert str(tmp_path) in sync_line
 
 
+def test_init_existing_vault_omits_full_sync_recommendation(tmp_path, monkeypatch):
+    """Re-running init on an existing vault should not recommend 'natalie sync --full'."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")  # creates db
+    result = runner.invoke(app, ["init", str(tmp_path)], input="y\n")  # upgrade run
+    assert result.exit_code == 0
+    assert "natalie sync --full" not in result.output
+    assert "reconfigured" in result.output
+
+
 def test_init_merges_existing_appearance_json(tmp_path):
     import json
 

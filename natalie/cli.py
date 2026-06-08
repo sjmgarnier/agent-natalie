@@ -283,6 +283,7 @@ def init(
         {"enabledCssSnippets": snippet_names},
     )
 
+    _is_new_vault = not (vault / ".natalie" / "natalie.db").exists()
     init_db(vault)
 
     cfg = load_config(vault)
@@ -463,7 +464,10 @@ def init(
     skill_dst.write_text(skill_src.read_text(encoding="utf-8"), encoding="utf-8")
 
     typer.echo(f"Vault initialized at: {vault}")
-    typer.echo(f"Next step: from {vault}, run 'natalie sync --full' to build the initial search index.")
+    if _is_new_vault:
+        typer.echo(f"Next step: from {vault}, run 'natalie sync --full' to build the initial search index.")
+    else:
+        typer.echo(f"Vault reconfigured at: {vault}")
 
 
 if __name__ == "__main__":
