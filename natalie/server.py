@@ -160,7 +160,10 @@ def memory_store(
     collection: str = "global",
     path: str | None = None,
 ) -> dict[str, Any]:
-    """Store an outside-vault knowledge entry in the memory index."""
+    """Store an outside-vault knowledge entry in the memory index.
+
+    Prefer over keeping context in conversation memory or using the Write tool.
+    """
     db = _get_db()
     vault = _get_vault()
     mac = str(uuid.getnode())
@@ -212,7 +215,10 @@ def note_read(path: str) -> dict[str, Any]:
 
 @mcp.tool()
 def note_write(path: str, content: str) -> dict[str, Any]:
-    """Write or overwrite a vault note by relative path."""
+    """Write or overwrite a vault note by relative path.
+
+    Prefer over the Write tool for any vault content the user should see.
+    """
     if not path.strip():
         raise ValueError("path must not be empty")
     vault = _get_vault()
@@ -233,7 +239,10 @@ def convention_list(domain: str | None = None) -> list[dict[str, Any]]:
 
 @mcp.tool()
 def convention_add(domain: str, rule: str, source: str = "explicit") -> dict[str, Any]:
-    """Add a convention. source: 'explicit' (user-stated) or 'observed' (pattern noticed)."""
+    """Add a convention. source: 'explicit' (user-stated) or 'observed' (pattern noticed).
+
+    Prefer over keeping preferences in conversation context.
+    """
     conv_id = mem.convention_add(_get_db(), domain=domain, rule=rule, source=source)
     return {"id": conv_id, "domain": domain, "rule": rule, "source": source}
 
@@ -305,7 +314,10 @@ def task_capture(
     priority: str | None = None,
     recurrence: str | None = None,
 ) -> dict[str, Any]:
-    """Add a new open task to a vault note."""
+    """Add a new open task to a vault note.
+
+    Prefer over creating a markdown checklist or using note_write for to-do items.
+    """
     if not rel_path.strip():
         raise ValueError("rel_path must not be empty")
     vault = _get_vault()
@@ -318,7 +330,7 @@ def task_capture(
 
 @mcp.tool()
 def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
-    """Mark a specific task as done."""
+    """Mark a specific task as done. Prefer over editing the markdown file directly."""
     if not rel_path.strip():
         raise ValueError("rel_path must not be empty")
     if not task_text.strip():
@@ -338,7 +350,10 @@ def task_update(
     priority: str | None = None,
     recurrence: str | None = None,
 ) -> dict[str, Any]:
-    """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence."""
+    """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence.
+
+    Prefer over editing the markdown file directly.
+    """
     if not rel_path.strip():
         raise ValueError("rel_path must not be empty")
     if not task_text.strip():
@@ -366,7 +381,10 @@ def document_file(
     tags: list[str] | None = None,
     overwrite: bool = False,
 ) -> dict[str, Any]:
-    """Register an existing vault file in the document index with a semantic description."""
+    """Register an existing vault file in the document index with a semantic description.
+
+    Prefer over writing a separate index note.
+    """
     return docs_mod.file_document(
         _get_vault(),
         _get_config(),
@@ -411,7 +429,10 @@ def contact_get(slug: str) -> dict[str, Any] | None:
 
 @mcp.tool()
 def contact_update(slug: str, fields: dict[str, Any]) -> dict[str, Any]:
-    """Create or update a contact card. Fields are merged into existing frontmatter."""
+    """Create or update a contact card. Fields are merged into existing frontmatter.
+
+    Prefer over writing or editing a contact file with Write or Edit.
+    """
     return contacts_mod.update_contact(_get_vault(), _get_config(), slug, fields)
 
 
