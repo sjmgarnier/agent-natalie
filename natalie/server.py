@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 import re
 import sqlite3
-import sys
 import threading
 import time
 import uuid
@@ -33,19 +32,24 @@ _db_vault: Path | None = None  # vault path used to create per-thread connection
 _db_local: threading.local = threading.local()  # each FastMCP worker thread gets its own connection
 _observer: Any | None = None
 
+_NO_VAULT_MSG = "No natalie vault found. Run 'natalie init' from your vault directory."
+
 
 def _get_vault() -> Path:
-    assert _vault is not None, "Server not initialized"
+    if _vault is None:
+        raise ValueError(_NO_VAULT_MSG)
     return _vault
 
 
 def _get_config() -> NatalieConfig:
-    assert _config is not None, "Server not initialized"
+    if _config is None:
+        raise ValueError(_NO_VAULT_MSG)
     return _config
 
 
 def _get_db() -> sqlite3.Connection:
-    assert _db_vault is not None, "Server not initialized"
+    if _db_vault is None:
+        raise ValueError(_NO_VAULT_MSG)
     if not hasattr(_db_local, "conn"):
         _db_local.conn = get_db(_db_vault)
     return cast(sqlite3.Connection, _db_local.conn)
@@ -54,8 +58,9 @@ def _get_db() -> sqlite3.Connection:
 @mcp.tool()
 def ping() -> dict[str, Any]:
     """Check that the Natalie server is running and return vault path."""
-    vault = _get_vault()
-    return {"status": "ok", "vault": str(vault)}
+    if _vault is None:
+        return {"status": "no-vault", "vault": None}
+    return {"status": "ok", "vault": str(_vault)}
 
 
 @mcp.tool()
@@ -430,8 +435,9 @@ def main() -> None:
     global _vault, _config, _db_vault, _observer
     try:
         _vault = require_vault()
-    except RuntimeError as exc:
-        sys.exit(str(exc))
+    except RuntimeError:
+        mcp.run()
+        return
     _config = load_config(_vault)
     init_db(_vault)  # create schema; connections are opened per-thread via _get_db()
     _db_vault = _vault

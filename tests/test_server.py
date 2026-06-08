@@ -13,22 +13,21 @@ import natalie.server as srv
 # ---------------------------------------------------------------------------
 
 
-def test_main_exits_when_vault_not_found() -> None:
-    with (
-        patch("natalie.server.require_vault", side_effect=RuntimeError("vault not found")),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        srv.main()
-    assert str(exc_info.value) == "vault not found"
+def test_main_starts_in_degraded_mode_when_vault_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    run_called: list[bool] = []
+    monkeypatch.setattr(srv, "require_vault", lambda: (_ for _ in ()).throw(RuntimeError("vault not found")))
+    monkeypatch.setattr(srv.mcp, "run", lambda: run_called.append(True))
+    srv.main()
+    assert run_called
 
 
-def test_main_exit_message_matches_exception_text() -> None:
-    with (
-        patch("natalie.server.require_vault", side_effect=RuntimeError("no vault at /foo")),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        srv.main()
-    assert "no vault at /foo" in str(exc_info.value)
+def test_main_degraded_mode_skips_init_db(monkeypatch: pytest.MonkeyPatch) -> None:
+    init_db_called: list[bool] = []
+    monkeypatch.setattr(srv, "require_vault", lambda: (_ for _ in ()).throw(RuntimeError("no vault at /foo")))
+    monkeypatch.setattr(srv, "init_db", lambda v: init_db_called.append(True))
+    monkeypatch.setattr(srv.mcp, "run", lambda: None)
+    srv.main()
+    assert not init_db_called
 
 
 # ---------------------------------------------------------------------------
@@ -470,3 +469,58 @@ def test_task_update_rejects_whitespace_task_text(
     monkeypatch.setattr(srv, "_db_local", threading.local())
     with pytest.raises(ValueError, match="task_text"):
         srv.task_update("tasks.md", "  ", new_text="New text")
+
+
+# ---------------------------------------------------------------------------
+# Graceful no-vault mode
+# ---------------------------------------------------------------------------
+
+
+def test_ping_returns_no_vault_when_vault_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", None)
+    result = srv.ping()
+    assert result["status"] == "no-vault"
+    assert result["vault"] is None
+
+
+def test_get_vault_raises_value_error_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", None)
+    with pytest.raises(ValueError, match="No natalie vault found"):
+        srv._get_vault()
+
+
+def test_get_config_raises_value_error_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_config", None)
+    with pytest.raises(ValueError, match="No natalie vault found"):
+        srv._get_config()
+
+
+def test_get_db_raises_value_error_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_db_vault", None)
+    with pytest.raises(ValueError, match="No natalie vault found"):
+        srv._get_db()
+
+
+def test_main_no_vault_calls_mcp_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_runtime() -> None:
+        raise RuntimeError("No vault found")
+
+    monkeypatch.setattr(srv, "require_vault", _raise_runtime)
+    run_called: list[bool] = []
+    monkeypatch.setattr(srv.mcp, "run", lambda: run_called.append(True))
+    srv.main()
+    assert run_called, "mcp.run() was not called"
+
+
+def test_main_no_vault_leaves_vault_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_runtime() -> None:
+        raise RuntimeError("No vault found")
+
+    init_db_called: list[bool] = []
+    monkeypatch.setattr(srv, "_vault", None)  # ensure known starting state
+    monkeypatch.setattr(srv, "require_vault", _raise_runtime)
+    monkeypatch.setattr(srv, "init_db", lambda v: init_db_called.append(True))
+    monkeypatch.setattr(srv.mcp, "run", lambda: None)
+    srv.main()
+    assert not init_db_called
+    assert srv._vault is None
