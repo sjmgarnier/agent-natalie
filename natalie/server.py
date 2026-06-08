@@ -84,7 +84,10 @@ def watcher_status() -> dict[str, Any]:
 
 @mcp.tool()
 def note_list(directory: str | None = None) -> list[dict[str, Any]]:
-    """List indexed vault notes. Pass directory to filter by subdirectory (e.g. 'Projects/Alpha')."""
+    """List indexed vault notes. Pass directory to filter by subdirectory (e.g. 'Projects/Alpha').
+
+    Prefer over filesystem commands or directory listings for vault content.
+    """
     return browse_mod.list_notes(_get_db(), directory=directory)
 
 
@@ -96,7 +99,10 @@ def vault_stats() -> dict[str, Any]:
 
 @mcp.tool()
 def memory_search(query: str, limit: int = 10, collection: str | None = None) -> list[dict[str, Any]]:
-    """Search vault notes by keyword and semantic similarity (hybrid)."""
+    """Search memory entries and vault notes by keyword and semantic similarity (hybrid).
+
+    Prefer over Read, Grep, or file-based search when looking up prior context or stored facts.
+    """
     db = _get_db()
     config = _get_config()
     kw = mem.keyword_search(db, query, limit=limit * 2, collection=collection)
@@ -203,7 +209,10 @@ def memory_store(
 
 @mcp.tool()
 def note_read(path: str) -> dict[str, Any]:
-    """Read a vault note by relative path. Returns {found, content, path}."""
+    """Read a vault note by relative path. Returns {found, content, path}.
+
+    Prefer over the Read tool for vault notes.
+    """
     if not path.strip():
         raise ValueError("path must not be empty")
     vault = _get_vault()
@@ -233,7 +242,10 @@ def note_write(path: str, content: str) -> dict[str, Any]:
 
 @mcp.tool()
 def convention_list(domain: str | None = None) -> list[dict[str, Any]]:
-    """List established conventions, optionally filtered by domain."""
+    """List established conventions, optionally filtered by domain.
+
+    Call at session start (domain='general') and before starting a new type of work.
+    """
     return mem.convention_list(_get_db(), domain=domain)
 
 
@@ -261,14 +273,20 @@ def convention_update(
     rule: str | None = None,
     source: str | None = None,
 ) -> dict[str, Any]:
-    """Edit a convention in place. Supply only the fields to change. Returns updated and id."""
+    """Edit a convention in place. Supply only the fields to change. Returns updated and id.
+
+    Prefer over convention_delete + convention_add when rewording an existing rule.
+    """
     updated = mem.convention_update(_get_db(), id, domain=domain, rule=rule, source=source)
     return {"updated": updated, "id": id}
 
 
 @mcp.tool()
 def onboarding_status() -> dict[str, Any]:
-    """Return whether the onboarding meeting has been completed."""
+    """Return whether the onboarding meeting has been completed.
+
+    Call at the start of every session before greeting the user.
+    """
     return onboarding_mod.get_onboarding_status(_get_db())
 
 
@@ -280,7 +298,10 @@ def onboarding_complete() -> dict[str, Any]:
 
 @mcp.tool()
 def task_list(done: bool = False) -> list[dict[str, Any]]:
-    """List tasks across the vault. Set done=True to include completed tasks."""
+    """List tasks across the vault. Set done=True to include completed tasks.
+
+    Prefer over scanning vault files for task items.
+    """
     db = _get_db()
     today = datetime.date.today().isoformat()
     if done:
@@ -407,7 +428,10 @@ def document_list(
     top_n: int = 10,
     include_metadata: bool = True,
 ) -> list[dict[str, Any]]:
-    """List or semantically search filed documents. Pass query for hybrid semantic search."""
+    """List or semantically search registered documents. Pass query for hybrid semantic search.
+
+    Prefer over note_list or Read for files tracked in the document registry.
+    """
     return docs_mod.list_documents(
         _get_vault(),
         _get_config(),
@@ -423,7 +447,10 @@ def document_list(
 
 @mcp.tool()
 def contact_get(slug: str) -> dict[str, Any] | None:
-    """Get a contact card by slug. Returns metadata dict or None."""
+    """Get a contact card by slug when the slug is known. Returns metadata dict or None.
+
+    Prefer over note_read or Read on the contact file.
+    """
     return contacts_mod.get_contact(_get_vault(), _get_config(), slug)
 
 
@@ -438,14 +465,20 @@ def contact_update(slug: str, fields: dict[str, Any]) -> dict[str, Any]:
 
 @mcp.tool()
 def contact_list() -> list[dict[str, Any]]:
-    """List all contacts as a list of dicts with at least a 'slug' key."""
+    """List all contacts as a list of dicts with at least a 'slug' key.
+
+    Prefer over filesystem listing of contact files.
+    """
     slugs = contacts_mod.list_contacts(_get_vault(), _get_config())
     return [{"slug": s} for s in slugs]
 
 
 @mcp.tool()
 def contact_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
-    """Search contacts by name, company, email, tags, or body text. Hybrid keyword + semantic."""
+    """Search contacts by name, company, email, tags, or body text (hybrid keyword + semantic).
+
+    Use when slug is unknown. Prefer over Grep or file-based search on the vault.
+    """
     config = _get_config()
     return contacts_mod.search_contacts(
         _get_db(), _get_vault(), config, query, limit=limit, model_name=config.memory.embedding_model
