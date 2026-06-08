@@ -179,6 +179,22 @@ def test_note_read_rejects_whitespace_path(vault: Path, monkeypatch: pytest.Monk
         srv.note_read("   ")
 
 
+def test_note_read_rejects_json_path(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
+        srv.note_read("config.json")
+
+
+def test_note_read_rejects_toml_path(vault: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
+        srv.note_read("settings.toml")
+
+
 def test_task_capture_rejects_empty_rel_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(srv, "_vault", vault)
     monkeypatch.setattr(srv, "_db_vault", vault)

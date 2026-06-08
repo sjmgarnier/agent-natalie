@@ -20,7 +20,7 @@ from .features import memory as mem
 from .features import onboarding as onboarding_mod
 from .features import tasks as tasks_mod
 from .features.watcher import start_watcher
-from .utils import safe_join
+from .utils import require_md_path, safe_join
 from .vault import require_vault
 
 mcp = FastMCP("natalie")
@@ -215,6 +215,7 @@ def note_read(path: str) -> dict[str, Any]:
     """
     if not path.strip():
         raise ValueError("path must not be empty")
+    require_md_path(path, "Use the Read tool to access non-Markdown vault files.")
     vault = _get_vault()
     full = safe_join(vault, path)
     if not full.exists():
