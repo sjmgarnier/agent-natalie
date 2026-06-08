@@ -101,3 +101,31 @@ def test_render_instructions_agents_contains_onboarding_section(vault, config):
     assert "## Onboarding" in output
     assert "onboarding_status" in output
     assert "onboarding_complete" in output
+
+
+def test_render_instructions_contains_tool_constraints(vault, config):
+    output = render_instructions(config, vault, target="claude")
+    assert "## Tool Constraints" in output
+    assert "note_read" in output
+    assert "note_write" in output
+    assert "memory_store" in output
+    assert "memory_search" in output
+    assert "task_list" in output
+    assert "document_file" in output
+    assert "contact_search" in output
+    assert "onboarding_complete" in output
+    assert "watcher_status" in output
+
+
+def test_render_instructions_agents_contains_tool_constraints(vault, config):
+    output = render_instructions(config, vault, target="agents")
+    assert "## Tool Constraints" in output
+    assert "note_read" in output
+    assert "note_write" in output
+    assert "memory_store" in output
+    assert "memory_search" in output
+    assert "task_list" in output
+    assert "document_file" in output
+    assert "contact_search" in output
+    assert "onboarding_complete" in output
+    assert "watcher_status" in output

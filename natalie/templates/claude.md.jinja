@@ -95,6 +95,106 @@ Use `contact_list` to see all known contacts — it returns a list of `{slug}` d
 When the user mentions a person by name but the exact slug is unknown, use `contact_search` with natural language. Prefer `contact_get` when the slug is already known (cheaper).
 When the user mentions a person by name or asks you to reach out, email, or schedule
 with someone, call `contact_get` first to check for a known card.
+## Tool Constraints
+
+### Notes
+- **`note_read`**
+  - ✓ Read a `.md` vault note by its relative path
+  - ✗ Read JSON, TOML, YAML, CSV, or any non-Markdown file
+  - ✗ Use as a general-purpose file reader for arbitrary vault content
+- **`note_write`**
+  - ✓ Create or update a `.md` vault note the user can see and navigate to
+  - ✗ Write JSON, TOML, YAML, CSV, or any non-Markdown format
+  - ✗ Persist structured data or config files
+  - ✗ Substitute for `memory_store` — hidden internal records go there
+- **`note_list`**
+  - ✓ List indexed vault notes; use the `directory` param to filter by subdirectory
+  - ✗ Use as a general filesystem directory listing
+
+### Memory
+- **`memory_store`**
+  - ✓ Store decisions, task completions, or context the agent needs to recall later
+  - ✗ Store notes the user should see or navigate to — use `note_write` instead
+  - ✗ Store tasks — use `task_capture` instead
+- **`memory_search`**
+  - ✓ Search hidden memory entries and indexed vault notes
+  - ✗ Find registered documents — use `document_list` instead
+  - ✗ Find contacts — use `contact_search` or `contact_get` instead
+
+### Conventions
+- **`convention_add`**
+  - ✓ Add a rule the user has explicitly confirmed they want saved
+  - ✓ Use only the closed domain set: `general`, `communication`, `writing`, `code`, `research`, `files`, `calendar`
+  - ✗ Invent domain values outside the closed set
+  - ✗ Add a convention without user confirmation
+- **`convention_list`**
+  - ✓ Load rules before starting a new type of work or at session start
+  - ✗ Use to search memories or notes
+- **`convention_delete`**
+  - ✓ Delete a convention by ID — but always show the user which convention will be removed and get confirmation first
+  - ✗ Delete without user confirmation
+- **`convention_update`**
+  - ✓ Preferred over `convention_delete` + `convention_add` when rewording or adjusting an existing rule
+  - ✗ Pass fields you don't intend to change — omitted fields are preserved automatically
+
+### Tasks
+- **`task_list`**
+  - ✓ Query the tasks table; surface overdue tasks at session start
+  - ✗ Scan vault files directly for tasks — the `tasks` table is the source of truth
+- **`task_capture`**
+  - ✓ Add a new task; default path is the configured tasks note unless the user specifies otherwise
+  - ✗ Write to arbitrary paths without explicit user instruction
+- **`task_complete`**
+  - ✓ Always call `task_list` first to obtain the exact `path` and `text` fields, then pass them verbatim
+  - ✗ Guess or paraphrase the task text — the exact `text` from `task_list` is required
+- **`task_update`**
+  - ✓ Edit an open task in place; preferred over `task_complete` + `task_capture` for reschedules or renames
+  - ✓ Pass `"clear"` to explicitly remove a field (e.g. `due_date="clear"`)
+  - ✗ Re-pass fields you are not changing — omitted fields are preserved automatically
+
+### Documents
+- **`document_file`**
+  - ✓ Register an already-existing vault file in the document index
+  - ✗ Register a file that does not yet exist in the vault
+  - ✗ Call with `overwrite=True` without explicit user confirmation when the file is already registered
+- **`document_list`**
+  - ✓ Find registered documents; pass a natural-language `query` for semantic search
+  - ✗ Use to search general memories or vault notes — use `memory_search` instead
+  - ✗ Use to find contacts — use `contact_search` instead
+
+### Contacts
+- **`contact_get`**
+  - ✓ Fetch a contact card when the slug is already known
+  - ✗ Use when the slug is uncertain — use `contact_search` instead
+- **`contact_update`**
+  - ✓ Create or update a contact card
+  - ✗ Store non-contact information as a contact record
+- **`contact_list`**
+  - ✓ Retrieve all known contact slugs
+  - ✗ Use when you need to search by name or attribute — use `contact_search` instead
+- **`contact_search`**
+  - ✓ Search by name or natural language when the slug is unknown
+  - ✗ Use when the slug is already known — `contact_get` is cheaper
+
+### Onboarding
+- **`onboarding_status`**
+  - ✓ Call once at session start, before greeting the user
+  - ✗ Call repeatedly mid-session
+- **`onboarding_complete`**
+  - ✓ Call only when the user explicitly signals they are finished with onboarding
+  - ✗ Call when the user simply pivots to a task — they can resume onboarding later
+
+### System
+- **`ping`**
+  - ✓ Confirm the server is up and which vault is active when diagnosing a connection issue
+  - ✗ Call routinely or at every session start
+- **`watcher_status`**
+  - ✓ Call when `task_list` returns unexpectedly empty results, `memory_search` misses recently written notes, or the user reports stale changes
+  - ✗ Call routinely — this is a diagnostic tool only
+- **`vault_stats`**
+  - ✓ Report vault health: note count, open tasks, embedding coverage, last synced
+  - ✗ Substitute for `task_list` or `memory_search`
+
 {% if preferred_skills or denied_skills %}
 
 ## Skills
