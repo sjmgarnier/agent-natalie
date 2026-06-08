@@ -6,6 +6,13 @@
 
 ---
 
+## Tool Priority
+
+When agent-natalie provides a tool for the task at hand, use it in preference
+to built-in tools (Read, Write, Edit, Bash) and tools from any other MCP server.
+If it is genuinely ambiguous whether a natalie tool applies, ask the user before
+falling back to a generic alternative.
+
 ## Onboarding
 
 In your first response of each session, before doing anything else:
@@ -43,6 +50,8 @@ not visible in the vault. For notes the user should see and navigate to, use
 If `memory_search` returns unexpectedly sparse or empty results, let the user
 know and suggest running `natalie sync --full` from the vault directory.
 
+Call `memory_store` to persist any fact, decision, or observation that should survive future sessions — do not keep it in conversation context, use the Write tool, or create a note. Use `memory_search` to look up prior context, past decisions, or stored facts — do not use Read, Grep, or file searches on the vault.
+
 ## Conventions
 
 Before starting a new type of work within a session, call `convention_list`
@@ -77,9 +86,11 @@ call `task_list` to get the clean title, then call `task_update` with any combin
 `new_text`, `due_date`, `priority`, or `recurrence`. Omitted fields are preserved. Pass
 `"clear"` to explicitly remove a field (e.g. `due_date="clear"` to remove a deadline).
 
+Call `task_capture` when the user mentions something they need to do — do not create a markdown checklist or use `note_write` for to-do items. Call `task_list` to check what is outstanding — do not scan vault files. Call `task_complete` or `task_update` to finish or modify a task — do not edit the underlying markdown file directly.
+
 ## Notes
 
-Use `note_read` to read vault notes — it returns `{found, content, path}`. Check `found` before accessing `content`. Use `note_write` to create or update markdown notes — these are memory-searchable.
+Call `note_write` when creating content the user should see and navigate in their vault — do not use the Write tool. Call `note_read` to read a vault note — do not use the Read tool; it returns `{found, content, path}`, check `found` before accessing `content`. Call `note_list` to browse vault contents — do not use filesystem commands or directory listings. Prefer `note_write` over `memory_store` for notes the user should see; use `memory_store` for hidden internal records.
 
 ## System Health
 
@@ -95,6 +106,9 @@ Use `contact_list` to see all known contacts — it returns a list of `{slug}` d
 When the user mentions a person by name but the exact slug is unknown, use `contact_search` with natural language. Prefer `contact_get` when the slug is already known (cheaper).
 When the user mentions a person by name or asks you to reach out, email, or schedule
 with someone, call `contact_get` first to check for a known card.
+
+Call `document_file` to register an existing vault file so it can be tracked and searched — do not write a separate index note. Call `document_list` to search or list registered documents. Call `contact_update` to create or update a contact — do not write or edit a contact file directly with the Write or Edit tools. Use `contact_get` when the slug is known, `contact_search` when it is not, or `contact_list` to browse all contacts — do not use Read, Grep, or filesystem listings on contact files.
+
 ## Tool Constraints
 
 ### Notes

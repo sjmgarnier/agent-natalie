@@ -129,3 +129,78 @@ def test_render_instructions_agents_contains_tool_constraints(vault, config):
     assert "contact_search" in output
     assert "onboarding_complete" in output
     assert "watcher_status" in output
+
+
+def test_render_instructions_contains_tool_priority_section(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        assert "## Tool Priority" in output, f"Missing Tool Priority section in {target} template"
+
+
+def test_render_instructions_tool_priority_before_onboarding(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        priority_pos = output.index("## Tool Priority")
+        onboarding_pos = output.index("## Onboarding")
+        assert priority_pos < onboarding_pos, f"Tool Priority must precede Onboarding in {target} template"
+
+
+def test_render_instructions_memory_contains_routing(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        memory_start = output.index("## Memory")
+        conventions_start = output.index("## Conventions")
+        memory_section = output[memory_start:conventions_start]
+        assert "do not keep it in conversation context" in memory_section, (
+            f"No routing guidance in Memory section for {target}"
+        )
+
+
+def test_render_instructions_tasks_contains_routing(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        tasks_start = output.index("## Tasks")
+        notes_start = output.index("## Notes")
+        tasks_section = output[tasks_start:notes_start]
+        assert "do not scan vault files" in tasks_section, (
+            f"No routing guidance in Tasks section for {target}"
+        )
+
+
+def test_render_instructions_notes_contains_routing(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        notes_start = output.index("## Notes")
+        system_start = output.index("## System Health")
+        notes_section = output[notes_start:system_start]
+        assert "do not use the Write tool" in notes_section, (
+            f"No routing guidance in Notes section for {target}"
+        )
+
+
+def test_render_instructions_documents_contacts_contains_routing(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        docs_start = output.index("## Documents and Contacts")
+        tool_constraints_start = output.index("## Tool Constraints")
+        docs_section = output[docs_start:tool_constraints_start]
+        assert "do not write or edit a contact file" in docs_section, (
+            f"No routing guidance in Documents and Contacts section for {target}"
+        )
+
+
+def test_render_instructions_tool_priority_text(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        assert "built-in tools" in output, f"Tool Priority missing 'built-in tools' in {target}"
+        assert "genuinely ambiguous" in output, f"Tool Priority missing 'genuinely ambiguous' in {target}"
+
+
+def test_render_instructions_notes_covers_all_three_tools(vault, config):
+    for target in ("claude", "agents"):
+        output = render_instructions(config, vault, target=target)
+        notes_start = output.index("## Notes")
+        system_start = output.index("## System Health")
+        notes_section = output[notes_start:system_start]
+        for tool in ("note_write", "note_read", "note_list"):
+            assert tool in notes_section, f"Notes section missing {tool} in {target}"
