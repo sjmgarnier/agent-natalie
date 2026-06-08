@@ -6,7 +6,7 @@
 
 A portable personal assistant MCP server for AI coding agents. Natalie lives in your Obsidian vault — memory, tasks, contacts, and conventions stay fully local and offline, no cloud or external API required.
 
-Tested with Claude Code, OpenCode, and Mistral Vibe. Any MCP-compatible agent
+Tested with Claude Code, OpenCode, Mistral Vibe, and Goose. Any MCP-compatible agent
 client should work — see [Connecting your agent](#connecting-your-agent) below.
 
 ## What it does
@@ -94,7 +94,7 @@ Click **Dashboard.md** in the vault root. Switch to Reading view if it doesn't r
 ## Connecting your agent
 
 `natalie-server` is a standard MCP server. Any MCP-compatible agent client can use it.
-`natalie init` pre-wires **Claude Code**, **OpenCode**, and **Mistral Vibe** automatically;
+`natalie init` pre-wires **Claude Code**, **OpenCode**, **Mistral Vibe**, and **Goose** automatically;
 for other clients follow the generic instructions below.
 
 ### Claude Code
@@ -135,6 +135,23 @@ Mistral Vibe reads `.vibe/config.toml` and connects to `natalie-server` automati
 If you enabled experimental hooks during `natalie init`, `natalie sync` runs automatically
 after every agent turn (requires Mistral Vibe v2.9.0+). Otherwise, run `natalie sync`
 manually after sessions that modify vault files.
+
+### Goose
+
+`natalie init` registers `natalie-server` in Goose's global config (`~/.config/goose/config.yaml`)
+and creates a project plugin at `<vault>/.agents/plugins/natalie/` with a PostToolUse hook
+that runs `natalie sync` after every tool call.
+
+Start Goose from inside the vault directory:
+
+```bash
+cd /path/to/your/vault
+goose
+```
+
+Goose discovers the natalie extension globally and the project plugin automatically.
+Outside a vault directory, all natalie tools return a clear "no vault found" message —
+the extension loads cleanly without broken-extension errors.
 
 ### Other MCP clients
 
