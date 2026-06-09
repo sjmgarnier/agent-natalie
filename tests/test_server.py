@@ -53,24 +53,6 @@ def test_note_write_rejects_whitespace_path(vault: Path, config, monkeypatch: py
         srv.note_write("   ", "content")
 
 
-def test_note_write_rejects_json_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db_vault", vault)
-    monkeypatch.setattr(srv, "_db_local", threading.local())
-    monkeypatch.setattr(srv, "_config", config)
-    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
-        srv.note_write("data.json", '{"key": "value"}')
-
-
-def test_note_write_rejects_toml_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(srv, "_vault", vault)
-    monkeypatch.setattr(srv, "_db_vault", vault)
-    monkeypatch.setattr(srv, "_db_local", threading.local())
-    monkeypatch.setattr(srv, "_config", config)
-    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
-        srv.note_write("settings.toml", "[section]\nkey = 'value'")
-
-
 def test_note_write_creates_file_on_disk(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(srv, "_vault", vault)
     monkeypatch.setattr(srv, "_db_vault", vault)

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-natalie"
-version = "0.1.24"
+version = "0.1.25"
 description = "Offline personal assistant MCP server — memory, tasks, contacts, and conventions stored locally in your Obsidian vault. Works with Claude Code, OpenCode, and any MCP-compatible agent."
 keywords = ["mcp", "obsidian", "personal-assistant", "ai-agent", "memory", "claude-code", "opencode", "offline", "local-ai", "tasks"]
 readme = "README.md"
