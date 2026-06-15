@@ -281,12 +281,11 @@ def test_init_creates_vibe_config_with_mcp_entry(tmp_path):
     assert servers["natalie"]["transport"] == "stdio"
 
 
-def test_init_vibe_config_includes_skill_paths(tmp_path):
+def test_init_vibe_config_excludes_skill_paths(tmp_path):
     runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     with open(tmp_path / ".vibe" / "config.toml", "rb") as f:
         cfg = _tomllib.load(f)
-    skill_paths = cfg.get("skills", {}).get("skill_paths", [])
-    assert any("skills" in p for p in skill_paths)
+    assert "skill_paths" not in cfg.get("skills", {})
 
 
 def test_init_creates_vibe_hooks_when_enabled(tmp_path):
@@ -444,3 +443,26 @@ def test_init_skips_hooks_prompt_when_already_enabled(tmp_path):
     with open(vibe_dir / "config.toml", "rb") as f:
         cfg = _tomllib.load(f)
     assert cfg.get("enable_experimental_hooks") is True
+
+
+def test_init_copies_skills_to_agents_skills(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    agents_skills = tmp_path / ".agents" / "skills"
+    assert agents_skills.is_dir()
+    skill_dirs = [p.name for p in agents_skills.iterdir() if p.is_dir()]
+    assert "natalie-contact-enrichment" in skill_dirs
+
+
+def test_init_creates_claude_skills_symlink(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    link = tmp_path / ".claude" / "skills"
+    assert link.is_symlink()
+    assert link.resolve() == (tmp_path / ".agents" / "skills").resolve()
+
+
+def test_init_claude_skills_symlink_is_idempotent(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    link = tmp_path / ".claude" / "skills"
+    assert link.is_symlink()
+    assert link.resolve() == (tmp_path / ".agents" / "skills").resolve()

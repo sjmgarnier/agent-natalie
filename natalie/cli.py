@@ -1,4 +1,5 @@
 import json
+import shutil
 import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
@@ -379,10 +380,8 @@ def init(
         )
         enable_vibe_hooks = typer.confirm("Enable experimental Mistral Vibe hooks?", default=True)
 
-    skills_src = str(Path(__file__).parent / "skills")
     vibe_cfg: dict[str, Any] = {
         "mcp_servers": [{"name": "natalie", "transport": "stdio", "command": server_bin}],
-        "skills": {"skill_paths": [skills_src]},
     }
     if enable_vibe_hooks:
         vibe_cfg["enable_experimental_hooks"] = True
@@ -462,6 +461,22 @@ def init(
     skill_src = Path(__file__).parent / "skills" / "natalie-contact-enrichment" / "SKILL.md"
     skill_dst = goose_plugin_dir / "skills" / "natalie-contact-enrichment" / "SKILL.md"
     skill_dst.write_text(skill_src.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # Companion skills — copy all skills to <vault>/.agents/skills/ (shared auto-discovery path).
+    # Mistral Vibe discovers from .agents/skills/; Claude Code discovers via the symlink below.
+    skills_pkg = Path(__file__).parent / "skills"
+    agents_skills = vault / ".agents" / "skills"
+    agents_skills.mkdir(parents=True, exist_ok=True)
+    for skill_dir in sorted(skills_pkg.iterdir()):
+        if skill_dir.is_dir():
+            shutil.copytree(skill_dir, agents_skills / skill_dir.name, dirs_exist_ok=True)
+
+    # .claude/skills → ../.agents/skills — Claude Code project-level skills auto-discovery
+    claude_skills_link = vault / ".claude" / "skills"
+    if claude_skills_link.is_symlink():
+        claude_skills_link.unlink()
+    if not claude_skills_link.exists():
+        claude_skills_link.symlink_to(Path("..") / ".agents" / "skills")
 
     typer.echo(f"Vault initialized at: {vault}")
     if _is_new_vault:

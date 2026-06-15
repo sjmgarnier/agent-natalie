@@ -231,6 +231,7 @@ def note_write(path: str, content: str) -> dict[str, Any]:
     """
     if not path.strip():
         raise ValueError("path must not be empty")
+    require_md_path(path, "Use the Write tool to write non-Markdown vault files.")
     vault = _get_vault()
     db = _get_db()
     full = safe_join(vault, path)
