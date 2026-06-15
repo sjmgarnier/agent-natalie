@@ -7,6 +7,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from natalie.config import DEFAULT_EMBEDDING_MODEL
 from natalie.features import memory as mem_mod
 from natalie.features.contacts import get_contact, list_contacts, search_contacts, update_contact
 from natalie.features.memory import embed_notes, index_note
@@ -69,10 +70,7 @@ def test_get_contact_returns_whitespace_only_body(vault, config):
 
 def test_update_contact_rejects_traversal_in_directory(vault, config):
     """A config.contacts.directory that escapes the vault must raise ValueError."""
-    import pytest
-
     from natalie.config import ContactsConfig, NatalieConfig
-    from natalie.features.contacts import update_contact
 
     bad_config = NatalieConfig(contacts=ContactsConfig(directory="../../etc"))
     with pytest.raises(ValueError):
@@ -131,11 +129,11 @@ def test_search_contacts_semantic(
             for _ in texts:
                 yield rng.random(384).astype(np.float32)
 
-    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
+    monkeypatch.setattr(mem_mod, "_embedding_models", {DEFAULT_EMBEDDING_MODEL: FakeModel()})
     update_contact(vault, config, "carol", {"name": "Carol Designer", "content": "UX expert"})
     index_note(db, vault, vault / config.contacts.directory / "carol.md")
     embed_notes(db)
-    results = search_contacts(db, vault, config, "UX design", model_name="BAAI/bge-small-en-v1.5")
+    results = search_contacts(db, vault, config, "UX design", model_name=DEFAULT_EMBEDDING_MODEL)
     assert isinstance(results, list)
     if results:
         assert "source" in results[0]

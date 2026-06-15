@@ -10,9 +10,8 @@ import tomli_w
 import typer
 from ruamel.yaml import YAML as _YAML
 
-from .config import load_config
+from .config import DEFAULT_EMBEDDING_MODEL, load_config
 from .db import get_db, init_db
-from .features.memory import DEFAULT_EMBEDDING_MODEL
 from .generate import render_instructions
 from .vault import require_vault
 
@@ -215,7 +214,7 @@ def _merge_yaml(path: Path, update: dict[str, Any]) -> None:
         try:
             with open(path, encoding="utf-8") as f:
                 existing: Any = yaml.load(f) or {}
-        except Exception:  # noqa: BLE001
+        except Exception:
             existing = {}
     else:
         existing = {}
@@ -471,12 +470,17 @@ def init(
         if skill_dir.is_dir():
             shutil.copytree(skill_dir, agents_skills / skill_dir.name, dirs_exist_ok=True)
 
-    # .claude/skills → ../.agents/skills — Claude Code project-level skills auto-discovery
-    claude_skills_link = vault / ".claude" / "skills"
-    if claude_skills_link.is_symlink():
-        claude_skills_link.unlink()
-    if not claude_skills_link.exists():
-        claude_skills_link.symlink_to(Path("..") / ".agents" / "skills")
+    # .claude/skills/ — per-skill symlinks for Claude Code auto-discovery.
+    # Symlinking each package skill individually leaves user-installed skills untouched.
+    claude_skills_dir = vault / ".claude" / "skills"
+    claude_skills_dir.mkdir(parents=True, exist_ok=True)
+    for skill_dir in sorted(skills_pkg.iterdir()):
+        if skill_dir.is_dir():
+            link = claude_skills_dir / skill_dir.name
+            if link.is_symlink():
+                link.unlink()
+            if not link.exists():
+                link.symlink_to(Path("..") / ".." / ".agents" / "skills" / skill_dir.name)
 
     typer.echo(f"Vault initialized at: {vault}")
     if _is_new_vault:

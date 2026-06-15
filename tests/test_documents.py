@@ -8,6 +8,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from natalie.config import DEFAULT_EMBEDDING_MODEL
 from natalie.features import memory as mem_mod
 from natalie.features.documents import file_document, list_documents
 
@@ -20,7 +21,7 @@ class FakeModel:
 
 @pytest.fixture(autouse=True)
 def fake_embeddings(monkeypatch):
-    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
+    monkeypatch.setattr(mem_mod, "_embedding_models", {DEFAULT_EMBEDDING_MODEL: FakeModel()})
 
 
 # ── file_document ─────────────────────────────────────────────────────────────

@@ -14,13 +14,12 @@ from natalie.features.memory import (
     convention_list,
     convention_update,
     embed_notes,
-    get_notes,
     index_note,
     keyword_search,
     remove_note,
     semantic_search,
 )
-from tests.helpers import write_note
+from tests.helpers import get_notes, write_note
 
 
 class _FakeEmbedding:

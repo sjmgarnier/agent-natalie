@@ -4,7 +4,8 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .memory import DEFAULT_EMBEDDING_MODEL, embed_notes, index_note, remove_note
+from ..config import DEFAULT_EMBEDDING_MODEL
+from .memory import embed_notes, index_note, remove_note
 from .tasks import index_tasks
 
 

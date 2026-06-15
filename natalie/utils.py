@@ -12,6 +12,11 @@ def safe_join(base: Path, user_part: str) -> Path:
     return full
 
 
+def fts_quote(token: str) -> str:
+    """Wrap an FTS5 query token in double-quotes, escaping internal quotes and NUL bytes."""
+    return '"' + token.replace("\x00", "").replace('"', '""') + '"'
+
+
 def require_md_path(path: str, hint: str = "") -> None:
     """Raise ValueError if path does not end with .md."""
     if not path.lower().endswith(".md"):

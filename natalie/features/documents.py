@@ -10,8 +10,8 @@ from typing import Any
 import numpy as np
 
 from ..config import NatalieConfig
-from ..features.memory import _get_embedding_model
-from ..utils import safe_join
+from ..utils import fts_quote, safe_join
+from .memory import _get_embedding_model
 
 
 def _sha256(path: Path) -> str:
@@ -20,10 +20,6 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-def _fts_quote(token: str) -> str:
-    return '"' + token.replace("\x00", "").replace('"', '""') + '"'
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -159,7 +155,7 @@ def list_documents(
     placeholders = ",".join("?" * len(candidate_ids))
 
     # BM25 keyword search over descriptions
-    fts_query = " ".join(_fts_quote(t) + "*" for t in query.split() if t)
+    fts_query = " ".join(fts_quote(t) + "*" for t in query.split() if t)
     kw_ranked: list[tuple[int, int, str]] = []  # (rank, doc_id, rel_path)
     if fts_query:
         kw_rows = db.execute(

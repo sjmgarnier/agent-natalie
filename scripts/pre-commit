@@ -9,7 +9,7 @@ export UV_PROJECT_ENVIRONMENT="$HOME/.local/share/agent-natalie/.venv"
 if ! uv run python -c "import natalie" &>/dev/null; then
     echo "pre-commit: venv appears broken — rebuilding at $UV_PROJECT_ENVIRONMENT..."
     rm -rf "$UV_PROJECT_ENVIRONMENT"
-    uv sync --all-extras
+    uv sync
 fi
 
 make check

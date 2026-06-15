@@ -7,9 +7,9 @@ from typing import Any
 import frontmatter as fm
 import numpy as np
 
-from ..config import NatalieConfig
-from ..utils import safe_join
-from .memory import DEFAULT_EMBEDDING_MODEL, _fts_quote, _get_embedding_model
+from ..config import DEFAULT_EMBEDDING_MODEL, NatalieConfig
+from ..utils import fts_quote, safe_join
+from .memory import _get_embedding_model
 
 
 def _contacts_dir(vault: Path, config: NatalieConfig) -> Path:
@@ -81,7 +81,7 @@ def search_contacts(
     # Keyword pass: FTS on title/body, supplemented by frontmatter LIKE search
     # (contact metadata such as name, email, company lives in frontmatter JSON,
     # which is not part of the FTS index)
-    fts_query = " ".join(_fts_quote(t) + "*" for t in query.split() if t)
+    fts_query = " ".join(fts_quote(t) + "*" for t in query.split() if t)
     terms = [t for t in query.split() if t]
     seen: dict[str, dict[str, Any]] = {}
 

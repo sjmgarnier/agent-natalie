@@ -29,6 +29,8 @@ if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
         "$VAULT_PATH/.claude/settings.json" \
         "$VAULT_PATH/opencode.json" \
         "$VAULT_PATH/.opencode/hooks.json" \
+        "$VAULT_PATH/.vibe/config.toml" \
+        "$VAULT_PATH/.vibe/hooks.toml" \
         "$VAULT_PATH/.obsidian/appearance.json"
     do
         if [[ -f "$f" ]]; then
@@ -46,11 +48,18 @@ if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
         fi
     done
 
+    # ── Remove skills symlink ─────────────────────────────────────────────────
+    if [[ -L "$VAULT_PATH/.claude/skills" ]]; then
+        rm "$VAULT_PATH/.claude/skills"
+        echo "Removed $VAULT_PATH/.claude/skills (symlink)"
+    fi
+
     # ── Optionally remove vault scaffold ─────────────────────────────────────
     echo ""
     echo "The following vault files were created by Natalie:"
     echo "  $VAULT_PATH/.natalie/"
     echo "  $VAULT_PATH/Natalie/"
+    echo "  $VAULT_PATH/.agents/"
     echo "  $VAULT_PATH/CLAUDE.md"
     echo "  $VAULT_PATH/AGENTS.md"
     echo "  $VAULT_PATH/Dashboard.md"
@@ -58,7 +67,7 @@ if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
     echo "All other vault notes are untouched regardless of your answer."
     read -rp "Remove vault scaffold? [y/N] " REMOVE_SCAFFOLD
     if [[ "$REMOVE_SCAFFOLD" =~ ^[Yy]$ ]]; then
-        rm -rf "$VAULT_PATH/.natalie" "$VAULT_PATH/Natalie"
+        rm -rf "$VAULT_PATH/.natalie" "$VAULT_PATH/Natalie" "$VAULT_PATH/.agents"
         for f in CLAUDE.md AGENTS.md Dashboard.md; do
             if [[ -f "$VAULT_PATH/$f" ]]; then
                 rm "$VAULT_PATH/$f"
@@ -67,6 +76,9 @@ if [[ -n "$VAULT_PATH" && -d "$VAULT_PATH" ]]; then
         echo "Vault scaffold removed."
     fi
 fi
+
+echo ""
+echo "Note: if you used Goose, remove the natalie extension manually from ~/.config/goose/config.yaml."
 
 echo ""
 echo "Uninstall complete."

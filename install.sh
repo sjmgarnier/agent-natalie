@@ -13,27 +13,6 @@ if ! command -v uv &>/dev/null; then
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 fi
 
-# ── Skill installer ───────────────────────────────────────────────────────────
-_install_skills() {
-    local vault_path="$1"
-    local skills_src
-    skills_src="$("$VENV_DIR/bin/python" -c \
-        "import natalie, pathlib; print(pathlib.Path(natalie.__file__).parent / 'skills')")"
-    if [[ ! -d "$skills_src" ]]; then
-        echo "  No skills directory found in package; skipping."
-        return
-    fi
-    mkdir -p "$vault_path/.claude/skills"
-    mkdir -p "$vault_path/.opencode/skills"
-    for skill_dir in "$skills_src"/*/; do
-        [[ -d "$skill_dir" ]] || continue
-        local skill_name="$(basename "$skill_dir")"
-        cp -r "$skill_dir" "$vault_path/.claude/skills/$skill_name"
-        cp -r "$skill_dir" "$vault_path/.opencode/skills/$skill_name"
-        echo "  Installed: $skill_name"
-    done
-}
-
 # ── Install or upgrade agent-natalie ─────────────────────────────────────────
 IS_UPGRADE=false
 if [[ -d "$VENV_DIR" ]]; then
@@ -109,15 +88,6 @@ if [[ "$IS_UPGRADE" == true ]]; then
     echo ""
     (cd "$VAULT_PATH" && "$NATALIE" config --regen)
     echo "CLAUDE.md and AGENTS.md updated with the latest tool instructions."
-fi
-
-# ── Install companion skills ──────────────────────────────────────────────────
-echo ""
-read -rp "Install/update companion Claude Code skills into this vault? [Y/n] " _INSTALL_SKILLS
-_INSTALL_SKILLS="${_INSTALL_SKILLS:-Y}"
-if [[ "$_INSTALL_SKILLS" =~ ^[Yy]$ ]]; then
-    echo ""
-    _install_skills "$VAULT_PATH"
 fi
 
 # ── Build / refresh search index ─────────────────────────────────────────────

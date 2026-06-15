@@ -1,3 +1,4 @@
+import tomllib as _tomllib
 from unittest.mock import patch
 
 from typer.testing import CliRunner
@@ -262,8 +263,6 @@ def test_init_preserves_non_natalie_hooks(tmp_path):
 # Mistral Vibe integration
 # ---------------------------------------------------------------------------
 
-import tomllib as _tomllib  # noqa: E402
-
 
 def test_init_creates_vibe_directory(tmp_path):
     runner.invoke(app, ["init", str(tmp_path)], input="y\n")
@@ -453,16 +452,29 @@ def test_init_copies_skills_to_agents_skills(tmp_path):
     assert "natalie-contact-enrichment" in skill_dirs
 
 
-def test_init_creates_claude_skills_symlink(tmp_path):
+def test_init_creates_claude_skills_symlinks(tmp_path):
     runner.invoke(app, ["init", str(tmp_path)], input="y\n")
-    link = tmp_path / ".claude" / "skills"
+    claude_skills = tmp_path / ".claude" / "skills"
+    assert claude_skills.is_dir() and not claude_skills.is_symlink()
+    link = claude_skills / "natalie-contact-enrichment"
     assert link.is_symlink()
-    assert link.resolve() == (tmp_path / ".agents" / "skills").resolve()
+    assert link.resolve() == (tmp_path / ".agents" / "skills" / "natalie-contact-enrichment").resolve()
 
 
-def test_init_claude_skills_symlink_is_idempotent(tmp_path):
+def test_init_claude_skills_symlinks_are_idempotent(tmp_path):
     runner.invoke(app, ["init", str(tmp_path)], input="y\n")
     runner.invoke(app, ["init", str(tmp_path)], input="y\n")
-    link = tmp_path / ".claude" / "skills"
+    claude_skills = tmp_path / ".claude" / "skills"
+    assert claude_skills.is_dir() and not claude_skills.is_symlink()
+    link = claude_skills / "natalie-contact-enrichment"
     assert link.is_symlink()
-    assert link.resolve() == (tmp_path / ".agents" / "skills").resolve()
+    assert link.resolve() == (tmp_path / ".agents" / "skills" / "natalie-contact-enrichment").resolve()
+
+
+def test_init_claude_skills_preserves_user_skills(tmp_path):
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    user_skill = tmp_path / ".claude" / "skills" / "my-custom-skill"
+    user_skill.mkdir()
+    (user_skill / "SKILL.md").write_text("# custom", encoding="utf-8")
+    runner.invoke(app, ["init", str(tmp_path)], input="y\n")
+    assert user_skill.is_dir()

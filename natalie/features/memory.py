@@ -10,7 +10,8 @@ import frontmatter as fm
 import numpy as np
 from fastembed import TextEmbedding
 
-DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+from natalie.config import DEFAULT_EMBEDDING_MODEL
+from natalie.utils import fts_quote
 
 # ── Indexing ──────────────────────────────────────────────────────────────────
 
@@ -69,17 +70,7 @@ def remove_note(db: sqlite3.Connection, rel_path: str) -> None:
     db.commit()
 
 
-def get_notes(db: sqlite3.Connection, collection: str | None = None) -> list[sqlite3.Row]:
-    if collection:
-        return db.execute("SELECT * FROM notes WHERE collection = ?", (collection,)).fetchall()
-    return db.execute("SELECT * FROM notes").fetchall()
-
-
 # ── FTS Search ────────────────────────────────────────────────────────────────
-
-
-def _fts_quote(token: str) -> str:
-    return '"' + token.replace("\x00", "").replace('"', '""') + '"'
 
 
 def keyword_search(
@@ -89,7 +80,7 @@ def keyword_search(
     collection: str | None = None,
 ) -> list[dict[str, Any]]:
     """Full-text search over indexed notes. Returns matches ranked by BM25."""
-    fts_query = " ".join(_fts_quote(t) + "*" for t in query.split() if t)
+    fts_query = " ".join(fts_quote(t) + "*" for t in query.split() if t)
     if not fts_query:
         return []
 

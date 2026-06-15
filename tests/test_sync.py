@@ -2,9 +2,9 @@ from unittest.mock import patch
 
 import pytest
 
-from natalie.features.memory import get_notes
+from natalie.config import DEFAULT_EMBEDDING_MODEL
 from natalie.features.sync import sync_vault
-from tests.helpers import write_note
+from tests.helpers import get_notes, write_note
 
 
 def test_sync_vault_indexes_markdown_files(vault, db):
@@ -52,7 +52,7 @@ def test_sync_cli_command_runs(vault, db):
         patch("natalie.cli.get_db", return_value=db),
         patch("natalie.features.sync.embed_notes"),
     ):
-        mock_cfg.return_value.memory.embedding_model = "BAAI/bge-small-en-v1.5"
+        mock_cfg.return_value.memory.embedding_model = DEFAULT_EMBEDDING_MODEL
         result = runner.invoke(app, ["sync"])
     assert result.exit_code == 0
     assert "1 indexed" in result.output
@@ -97,9 +97,7 @@ def test_sync_vault_removes_deleted_notes_incrementally(vault, db, monkeypatch):
 
             return [np.ones(4, dtype=np.float32) for _ in texts]
 
-    monkeypatch.setattr(mem_mod, "_embedding_models", {"BAAI/bge-small-en-v1.5": FakeModel()})
-
-    from natalie.features.sync import sync_vault
+    monkeypatch.setattr(mem_mod, "_embedding_models", {DEFAULT_EMBEDDING_MODEL: FakeModel()})
 
     note = vault / "will-be-deleted.md"
     note.write_text("hello")
