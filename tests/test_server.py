@@ -91,6 +91,72 @@ def test_note_write_indexes_note_in_db(vault: Path, db, config, monkeypatch: pyt
     assert row is not None
 
 
+# ---------------------------------------------------------------------------
+# note_frontmatter_update
+# ---------------------------------------------------------------------------
+
+
+def test_note_frontmatter_update_rejects_empty_path(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="path"):
+        srv.note_frontmatter_update("", fields={"status": "done"})
+
+
+def test_note_frontmatter_update_rejects_non_md_path(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
+        srv.note_frontmatter_update("data.json", fields={"status": "done"})
+
+
+def test_note_frontmatter_update_merges_fields_on_disk(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    (vault / "note.md").write_text("---\ntitle: Test\n---\nBody text.", encoding="utf-8")
+    result = srv.note_frontmatter_update("note.md", fields={"status": "done"})
+    assert result == {"updated": True, "path": "note.md"}
+    content = (vault / "note.md").read_text(encoding="utf-8")
+    assert "status: done" in content
+    assert "Body text." in content
+
+
+def test_note_frontmatter_update_reindexes_note_in_db(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    (vault / "note.md").write_text("---\ntitle: Test\n---\nBody text.", encoding="utf-8")
+    srv.note_frontmatter_update("note.md", fields={"status": "done"})
+    row = db.execute("SELECT tags FROM notes WHERE path = 'note.md'").fetchone()
+    assert row is not None
+
+
+def test_note_frontmatter_update_raises_if_note_missing(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="Note not found"):
+        srv.note_frontmatter_update("missing.md", fields={"status": "done"})
+
+
 def test_memory_store_rejects_path_traversal(
     vault: Path, config: object, monkeypatch: pytest.MonkeyPatch
 ) -> None:

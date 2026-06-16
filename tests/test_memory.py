@@ -18,6 +18,7 @@ from natalie.features.memory import (
     keyword_search,
     remove_note,
     semantic_search,
+    update_note_frontmatter,
 )
 from tests.helpers import get_notes, write_note
 
@@ -820,3 +821,71 @@ def test_convention_update_raises_on_invalid_source(db: sqlite3.Connection) -> N
     cid = convention_add(db, "code", "use snake_case", "explicit")
     with pytest.raises(ValueError, match="source"):
         convention_update(db, cid, source="bad-value")
+
+
+# ── update_note_frontmatter ─────────────────────────────────────────────────
+
+
+def _read_post(vault, rel):
+    import frontmatter as fm
+
+    return fm.loads((vault / rel).read_text(encoding="utf-8"))
+
+
+def test_update_note_frontmatter_merges_fields_without_touching_body(vault):
+    write_note(vault, "note.md", "---\ntitle: Test\nstatus: draft\n---\nBody text.")
+    result = update_note_frontmatter(vault, "note.md", fields={"status": "done"})
+    assert result == {"updated": True, "path": "note.md"}
+    post = _read_post(vault, "note.md")
+    assert post.metadata["status"] == "done"
+    assert post.metadata["title"] == "Test"
+    assert post.content == "Body text."
+
+
+def test_update_note_frontmatter_add_to_appends_without_duplicating(vault):
+    write_note(vault, "note.md", "---\ntags: [a, b]\n---\nBody.")
+    update_note_frontmatter(vault, "note.md", add_to={"tags": ["b", "c"]})
+    post = _read_post(vault, "note.md")
+    assert post.metadata["tags"] == ["a", "b", "c"]
+
+
+def test_update_note_frontmatter_add_to_creates_missing_list(vault):
+    write_note(vault, "note.md", "---\ntitle: Test\n---\nBody.")
+    update_note_frontmatter(vault, "note.md", add_to={"tags": ["new"]})
+    post = _read_post(vault, "note.md")
+    assert post.metadata["tags"] == ["new"]
+
+
+def test_update_note_frontmatter_remove_from_removes_items(vault):
+    write_note(vault, "note.md", "---\ntags: [a, b, c]\n---\nBody.")
+    update_note_frontmatter(vault, "note.md", remove_from={"tags": ["b"]})
+    post = _read_post(vault, "note.md")
+    assert post.metadata["tags"] == ["a", "c"]
+
+
+def test_update_note_frontmatter_add_to_raises_if_existing_value_not_list(vault):
+    write_note(vault, "note.md", "---\ntags: not-a-list\n---\nBody.")
+    with pytest.raises(ValueError, match="not a list"):
+        update_note_frontmatter(vault, "note.md", add_to={"tags": ["x"]})
+
+
+def test_update_note_frontmatter_rejects_overlapping_keys(vault):
+    write_note(vault, "note.md", "---\ntags: [a]\n---\nBody.")
+    with pytest.raises(ValueError, match="more than one"):
+        update_note_frontmatter(vault, "note.md", fields={"tags": ["x"]}, add_to={"tags": ["y"]})
+
+
+def test_update_note_frontmatter_raises_if_note_missing(vault):
+    with pytest.raises(ValueError, match="Note not found"):
+        update_note_frontmatter(vault, "missing.md", fields={"status": "done"})
+
+
+def test_update_note_frontmatter_raises_if_no_args_given(vault):
+    write_note(vault, "note.md", "---\ntitle: Test\n---\nBody.")
+    with pytest.raises(ValueError, match="at least one"):
+        update_note_frontmatter(vault, "note.md")
+
+
+def test_update_note_frontmatter_rejects_empty_rel_path(vault):
+    with pytest.raises(ValueError, match="empty"):
+        update_note_frontmatter(vault, "   ", fields={"status": "done"})

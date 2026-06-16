@@ -11,9 +11,76 @@ import numpy as np
 from fastembed import TextEmbedding
 
 from natalie.config import DEFAULT_EMBEDDING_MODEL
-from natalie.utils import fts_quote
+from natalie.utils import fts_quote, safe_join
 
 # ── Indexing ──────────────────────────────────────────────────────────────────
+
+
+def _merge_frontmatter(
+    metadata: dict[str, Any],
+    fields: dict[str, Any] | None = None,
+    add_to: dict[str, list[Any]] | None = None,
+    remove_from: dict[str, list[Any]] | None = None,
+) -> None:
+    """Apply fields/add_to/remove_from to a frontmatter metadata dict, in place.
+
+    fields replaces keys outright. add_to/remove_from append to / remove items from
+    list-valued fields (e.g. tags) without the caller needing to know the current value.
+    """
+    fields = fields or {}
+    add_to = add_to or {}
+    remove_from = remove_from or {}
+    overlap = (
+        (fields.keys() & add_to.keys())
+        | (fields.keys() & remove_from.keys())
+        | (add_to.keys() & remove_from.keys())
+    )
+    if overlap:
+        raise ValueError(f"field(s) {sorted(overlap)} appear in more than one of fields/add_to/remove_from")
+
+    metadata.update(fields)
+
+    for key, items in add_to.items():
+        existing = metadata.get(key, [])
+        if not isinstance(existing, list):
+            raise ValueError(f"frontmatter field '{key}' is not a list, cannot add_to it")
+        merged = list(existing)
+        for item in items:
+            if item not in merged:
+                merged.append(item)
+        metadata[key] = merged
+
+    for key, items in remove_from.items():
+        existing = metadata.get(key, [])
+        if not isinstance(existing, list):
+            raise ValueError(f"frontmatter field '{key}' is not a list, cannot remove_from it")
+        metadata[key] = [v for v in existing if v not in items]
+
+
+def update_note_frontmatter(
+    vault: Path,
+    rel_path: str,
+    fields: dict[str, Any] | None = None,
+    add_to: dict[str, list[Any]] | None = None,
+    remove_from: dict[str, list[Any]] | None = None,
+) -> dict[str, Any]:
+    """Merge fields into an existing vault note's frontmatter without touching the body.
+
+    Raises if the note doesn't exist — this is an update, not a create.
+    """
+    if not rel_path or not rel_path.strip():
+        raise ValueError("rel_path must not be empty or whitespace")
+    if not fields and not add_to and not remove_from:
+        raise ValueError("at least one of fields, add_to, or remove_from must be provided")
+
+    full = safe_join(vault, rel_path)
+    if not full.exists():
+        raise ValueError(f"Note not found: {rel_path}")
+
+    post = fm.loads(full.read_text(encoding="utf-8"))
+    _merge_frontmatter(post.metadata, fields, add_to, remove_from)
+    full.write_text(fm.dumps(post), encoding="utf-8")
+    return {"updated": True, "path": rel_path}
 
 
 def index_note(

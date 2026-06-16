@@ -9,7 +9,7 @@ import numpy as np
 
 from ..config import DEFAULT_EMBEDDING_MODEL, NatalieConfig
 from ..utils import fts_quote, safe_join
-from .memory import _get_embedding_model
+from .memory import _get_embedding_model, _merge_frontmatter
 
 
 def _contacts_dir(vault: Path, config: NatalieConfig) -> Path:
@@ -31,12 +31,12 @@ def update_contact(vault: Path, config: NatalieConfig, slug: str, fields: dict[s
     new_body = fields.pop("content", None)
     if path.exists():
         post = fm.loads(path.read_text(encoding="utf-8"))
-        post.metadata.update(fields)
+        _merge_frontmatter(post.metadata, fields)
         if new_body is not None:
             post.content = new_body
     else:
         post = fm.Post(content=new_body or "")
-        post.metadata.update(fields)
+        _merge_frontmatter(post.metadata, fields)
     path.write_text(fm.dumps(post), encoding="utf-8")
     return {"updated": True, "slug": slug}
 

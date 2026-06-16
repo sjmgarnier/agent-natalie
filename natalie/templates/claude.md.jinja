@@ -54,8 +54,14 @@ Call `memory_store` to persist any fact, decision, or observation that should su
 
 ## Conventions
 
-Before starting a new type of work within a session, call `convention_list`
-for the relevant domain to check for established rules. Follow them.
+The first time in a session you do any of the following, call `convention_list`
+for the matching domain before proceeding, and follow what it returns:
+drafting/sending a message or email (`communication`), writing or editing prose
+(`writing`), writing or reviewing code (`code`), research or analysis work
+(`research`), creating or organizing documents (`files`), scheduling or
+calendar work (`calendar`). Cache the result for the rest of the session —
+don't re-call `convention_list` for a domain you've already checked unless the
+user adds or changes a convention in that domain.
 
 Whenever the user expresses a preference or working rule during conversation, ask if they'd like to save it as a convention. If yes, call `convention_add`.
 When the user says a rule no longer applies or asks to remove a preference, call `convention_list` to find it, confirm with the user before deleting, then call `convention_delete` with the ID.
@@ -90,7 +96,7 @@ Call `task_capture` when the user mentions something they need to do — do not 
 
 ## Notes
 
-Call `note_write` when creating content the user should see and navigate in their vault — do not use the Write tool. Call `note_read` to read a vault note — do not use the Read tool; it returns `{found, content, path}`, check `found` before accessing `content`. Call `note_list` to browse vault contents — do not use filesystem commands or directory listings. Prefer `note_write` over `memory_store` for notes the user should see; use `memory_store` for hidden internal records.
+Call `note_write` when creating content the user should see and navigate in their vault — do not use the Write tool. Call `note_read` to read a vault note — do not use the Read tool; it returns `{found, content, path}`, check `found` before accessing `content`. Call `note_list` to browse vault contents — do not use filesystem commands or directory listings. Prefer `note_write` over `memory_store` for notes the user should see; use `memory_store` for hidden internal records. When only a note's frontmatter needs to change (e.g. adding a tag or setting a status field) and the note already exists, call `note_frontmatter_update` instead of `note_read` + `note_write` — it never brings the note's body into context.
 
 ## System Health
 
@@ -124,6 +130,11 @@ Call `document_file` to register an existing vault file so it can be tracked and
 - **`note_list`**
   - ✓ List indexed vault notes; use the `directory` param to filter by subdirectory
   - ✗ Use as a general filesystem directory listing
+- **`note_frontmatter_update`**
+  - ✓ Merge fields into an existing note's frontmatter (e.g. tags, status) without reading or writing the body
+  - ✓ Use `add_to`/`remove_from` to add or remove items from a list-valued field without first knowing its current contents
+  - ✗ Use on a note that doesn't exist yet — it raises; create it with `note_write` first
+  - ✗ Use when the body also needs to change — use `note_read` + `note_write` instead
 
 ### Memory
 - **`memory_store`**
@@ -142,7 +153,7 @@ Call `document_file` to register an existing vault file so it can be tracked and
   - ✗ Invent domain values outside the closed set
   - ✗ Add a convention without user confirmation
 - **`convention_list`**
-  - ✓ Load rules before starting a new type of work or at session start
+  - ✓ Call at session start (`domain="general"`), then once per session the first time you do communication, writing, code, research, files, or calendar work
   - ✗ Use to search memories or notes
 - **`convention_delete`**
   - ✓ Delete a convention by ID — but always show the user which convention will be removed and get confirmation first

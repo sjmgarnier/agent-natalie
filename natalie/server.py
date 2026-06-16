@@ -243,10 +243,38 @@ def note_write(path: str, content: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+def note_frontmatter_update(
+    path: str,
+    fields: dict[str, Any] | None = None,
+    add_to: dict[str, list[Any]] | None = None,
+    remove_from: dict[str, list[Any]] | None = None,
+) -> dict[str, Any]:
+    """Merge fields into an existing note's frontmatter without reading or writing the body.
+
+    fields replaces keys outright (e.g. {"status": "done"}). add_to/remove_from add or
+    remove items from list-valued fields (e.g. tags) without needing to know the current
+    list first. Raises if the note doesn't exist — use note_write to create one.
+
+    Prefer over note_read + note_write when only frontmatter needs to change.
+    """
+    if not path.strip():
+        raise ValueError("path must not be empty")
+    require_md_path(path, "Use the Write tool to write non-Markdown vault files.")
+    vault = _get_vault()
+    db = _get_db()
+    result = mem.update_note_frontmatter(vault, path, fields=fields, add_to=add_to, remove_from=remove_from)
+    full = safe_join(vault, path)
+    mem.index_note(db, vault, full)
+    tasks_mod.index_tasks(db, vault, full)
+    return result
+
+
+@mcp.tool()
 def convention_list(domain: str | None = None) -> list[dict[str, Any]]:
     """List established conventions, optionally filtered by domain.
 
-    Call at session start (domain='general') and before starting a new type of work.
+    Call at session start (domain='general'), then once per session the first time
+    you do communication, writing, code, research, files, or calendar work.
     """
     return mem.convention_list(_get_db(), domain=domain)
 
