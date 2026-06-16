@@ -7,7 +7,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 
@@ -19,6 +19,8 @@ from .features import documents as docs_mod
 from .features import memory as mem
 from .features import onboarding as onboarding_mod
 from .features import tasks as tasks_mod
+from .features.memory import DomainLiteral, SourceLiteral
+from .features.tasks import PriorityLiteral
 from .features.watcher import start_watcher
 from .utils import require_md_path, safe_join
 from .vault import require_vault
@@ -211,7 +213,8 @@ def memory_store(
 def note_read(path: str) -> dict[str, Any]:
     """Read a vault note by relative path. Returns {found, content, path}.
 
-    Prefer over the Read tool for vault notes.
+    Check found before accessing content — found is false if the note doesn't exist.
+    Markdown (.md) files only. Prefer over the Read tool for vault notes.
     """
     if not path.strip():
         raise ValueError("path must not be empty")
@@ -227,7 +230,8 @@ def note_read(path: str) -> dict[str, Any]:
 def note_write(path: str, content: str) -> dict[str, Any]:
     """Write or overwrite a vault note by relative path.
 
-    Prefer over the Write tool for any vault content the user should see.
+    Markdown (.md) files only. Prefer over the Write tool for any vault content
+    the user should see.
     """
     if not path.strip():
         raise ValueError("path must not be empty")
@@ -254,6 +258,7 @@ def note_frontmatter_update(
     fields replaces keys outright (e.g. {"status": "done"}). add_to/remove_from add or
     remove items from list-valued fields (e.g. tags) without needing to know the current
     list first. Raises if the note doesn't exist — use note_write to create one.
+    Markdown (.md) files only.
 
     Prefer over note_read + note_write when only frontmatter needs to change.
     """
@@ -270,7 +275,7 @@ def note_frontmatter_update(
 
 
 @mcp.tool()
-def convention_list(domain: str | None = None) -> list[dict[str, Any]]:
+def convention_list(domain: DomainLiteral | None = None) -> list[dict[str, Any]]:
     """List established conventions, optionally filtered by domain.
 
     Call at session start (domain='general'), then once per session the first time
@@ -280,7 +285,7 @@ def convention_list(domain: str | None = None) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def convention_add(domain: str, rule: str, source: str = "explicit") -> dict[str, Any]:
+def convention_add(domain: DomainLiteral, rule: str, source: SourceLiteral = "explicit") -> dict[str, Any]:
     """Add a convention. source: 'explicit' (user-stated) or 'observed' (pattern noticed).
 
     Prefer over keeping preferences in conversation context.
@@ -299,9 +304,9 @@ def convention_delete(convention_id: int) -> dict[str, Any]:
 @mcp.tool()
 def convention_update(
     id: int,
-    domain: str | None = None,
+    domain: DomainLiteral | None = None,
     rule: str | None = None,
-    source: str | None = None,
+    source: SourceLiteral | None = None,
 ) -> dict[str, Any]:
     """Edit a convention in place. Supply only the fields to change. Returns updated and id.
 
@@ -362,7 +367,7 @@ def task_capture(
     rel_path: str,
     task_text: str,
     due_date: str | None = None,
-    priority: str | None = None,
+    priority: PriorityLiteral | None = None,
     recurrence: str | None = None,
 ) -> dict[str, Any]:
     """Add a new open task to a vault note.
@@ -397,9 +402,9 @@ def task_update(
     rel_path: str,
     task_text: str,
     new_text: str | None = None,
-    due_date: str | None = None,
-    priority: str | None = None,
-    recurrence: str | None = None,
+    due_date: str | Literal["clear"] | None = None,
+    priority: PriorityLiteral | Literal["clear"] | None = None,
+    recurrence: str | Literal["clear"] | None = None,
 ) -> dict[str, Any]:
     """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence.
 

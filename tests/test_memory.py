@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import threading
+from typing import get_args
 from unittest.mock import patch
 
 import numpy as np
@@ -159,37 +160,37 @@ def test_semantic_search_returns_results(vault, db):
 def test_convention_add_and_list(db):
     convention_add(
         db,
-        domain="tasks",
+        domain="general",
         rule="Put tasks in the active project note.",
         source="explicit",
     )
-    conventions = convention_list(db, domain="tasks")
+    conventions = convention_list(db, domain="general")
     assert len(conventions) == 1
     assert conventions[0]["rule"] == "Put tasks in the active project note."
     assert conventions[0]["source"] == "explicit"
 
 
 def test_convention_list_filters_by_domain(db):
-    convention_add(db, domain="tasks", rule="Tasks rule", source="explicit")
-    convention_add(db, domain="contacts", rule="Contacts rule", source="explicit")
-    tasks_convs = convention_list(db, domain="tasks")
+    convention_add(db, domain="general", rule="Tasks rule", source="explicit")
+    convention_add(db, domain="files", rule="Contacts rule", source="explicit")
+    tasks_convs = convention_list(db, domain="general")
     assert len(tasks_convs) == 1
-    assert tasks_convs[0]["domain"] == "tasks"
+    assert tasks_convs[0]["domain"] == "general"
 
 
 def test_convention_list_all_when_no_domain(db):
-    convention_add(db, domain="tasks", rule="Rule 1", source="explicit")
-    convention_add(db, domain="contacts", rule="Rule 2", source="observed")
+    convention_add(db, domain="general", rule="Rule 1", source="explicit")
+    convention_add(db, domain="files", rule="Rule 2", source="observed")
     all_convs = convention_list(db)
     assert len(all_convs) == 2
 
 
 def test_convention_delete(db):
-    convention_add(db, domain="tasks", rule="To delete", source="explicit")
-    conv_id = convention_list(db, domain="tasks")[0]["id"]
+    convention_add(db, domain="general", rule="To delete", source="explicit")
+    conv_id = convention_list(db, domain="general")[0]["id"]
     result = convention_delete(db, conv_id)
     assert result is True
-    assert convention_list(db, domain="tasks") == []
+    assert convention_list(db, domain="general") == []
 
 
 def test_index_note_handles_date_frontmatter(vault, db):
@@ -345,14 +346,14 @@ def test_memory_store_overwrites_vault_note_sets_machine_mac(vault, db, monkeypa
 
 def test_convention_add_returns_int(db):
     """convention_add must return an int row ID (not None) — B4."""
-    row_id = convention_add(db, domain="tasks", rule="a rule", source="explicit")
+    row_id = convention_add(db, domain="general", rule="a rule", source="explicit")
     assert isinstance(row_id, int)
 
 
 def test_convention_add_rejects_invalid_source(db):
     """convention_add must raise ValueError for invalid source values — B2."""
     with pytest.raises(ValueError, match="source"):
-        convention_add(db, domain="tasks", rule="a rule", source="invalid")
+        convention_add(db, domain="general", rule="a rule", source="invalid")
 
 
 def test_convention_delete_returns_false_for_missing_id(db):
@@ -363,7 +364,7 @@ def test_convention_delete_returns_false_for_missing_id(db):
 
 def test_convention_delete_returns_true_when_found(db):
     """convention_delete must return True when the convention was present — B1."""
-    row_id = convention_add(db, domain="tasks", rule="to delete", source="explicit")
+    row_id = convention_add(db, domain="general", rule="to delete", source="explicit")
     result = convention_delete(db, row_id)
     assert result is True
 
@@ -640,13 +641,13 @@ def test_convention_add_rejects_whitespace_domain(db):
 def test_convention_add_rejects_empty_rule(db):
     """I7: convention_add with empty rule must raise ValueError."""
     with pytest.raises(ValueError, match="rule"):
-        convention_add(db, "testing", "")
+        convention_add(db, "general", "")
 
 
 def test_convention_add_rejects_whitespace_rule(db):
     """I7: convention_add with whitespace-only rule must raise ValueError."""
     with pytest.raises(ValueError, match="rule"):
-        convention_add(db, "testing", "   ")
+        convention_add(db, "general", "   ")
 
 
 def test_embed_notes_raising_model_leaves_no_partial_embeddings(vault, db, monkeypatch) -> None:
@@ -821,6 +822,51 @@ def test_convention_update_raises_on_invalid_source(db: sqlite3.Connection) -> N
     cid = convention_add(db, "code", "use snake_case", "explicit")
     with pytest.raises(ValueError, match="source"):
         convention_update(db, cid, source="bad-value")
+
+
+def test_convention_add_rejects_unrecognized_domain(db):
+    """Locked-down domain set: convention_add must reject domains outside the 7 known values."""
+    with pytest.raises(ValueError, match="domain"):
+        convention_add(db, "finance", "some rule")
+
+
+def test_convention_add_accepts_recognized_domain(db):
+    row_id = convention_add(db, "research", "cite primary sources")
+    assert isinstance(row_id, int)
+
+
+def test_convention_add_defaults_source_to_explicit(db):
+    convention_add(db, "general", "default source check")
+    rows = convention_list(db, "general")
+    assert rows[0]["source"] == "explicit"
+
+
+def test_convention_update_rejects_unrecognized_domain(db: sqlite3.Connection) -> None:
+    cid = convention_add(db, "code", "use snake_case", "explicit")
+    with pytest.raises(ValueError, match="domain"):
+        convention_update(db, cid, domain="finance")
+
+
+def test_domain_literal_matches_expected_set():
+    """Regression guard: DomainLiteral must stay in sync with the documented 7 domains."""
+    from natalie.features.memory import DomainLiteral
+
+    assert set(get_args(DomainLiteral)) == {
+        "general",
+        "communication",
+        "writing",
+        "code",
+        "research",
+        "files",
+        "calendar",
+    }
+
+
+def test_source_literal_matches_expected_set():
+    """Regression guard: SourceLiteral must stay in sync with the two known source kinds."""
+    from natalie.features.memory import SourceLiteral
+
+    assert set(get_args(SourceLiteral)) == {"explicit", "observed"}
 
 
 # ── update_note_frontmatter ─────────────────────────────────────────────────

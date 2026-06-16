@@ -1,8 +1,11 @@
 import datetime
+from typing import get_args
 
 import pytest
 
 from natalie.features.tasks import (
+    _VALID_PRIORITIES,
+    PriorityLiteral,
     _parse_task_text,
     capture_task,
     complete_task,
@@ -305,6 +308,11 @@ def test_capture_task_rejects_invalid_priority(vault):
         capture_task(vault, "tasks.md", "Do thing", priority="urgent")
 
 
+def test_priority_literal_matches_expected_set():
+    """Regression guard: PriorityLiteral must stay in sync with _VALID_PRIORITIES."""
+    assert set(get_args(PriorityLiteral)) == _VALID_PRIORITIES
+
+
 def test_capture_task_rejects_invalid_due_date(vault):
     with pytest.raises(ValueError, match="due_date"):
         capture_task(vault, "tasks.md", "Do thing", due_date="June 10")
@@ -405,6 +413,26 @@ def test_update_task_clear_due_date(vault):
     content = (vault / "tasks.md").read_text()
     assert "📅" not in content
     assert "⏫" in content
+
+
+def test_update_task_clear_priority(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report ⏫ 📅 2026-07-01\n")
+    result = update_task(vault, "tasks.md", "Write report", priority="clear")
+    assert result["updated"] is True
+    assert result["priority"] is None
+    assert result["due_date"] == "2026-07-01"  # preserved
+    content = (vault / "tasks.md").read_text()
+    assert "⏫" not in content
+    assert "📅" in content
+
+
+def test_update_task_clear_recurrence(vault):
+    write_note(vault, "tasks.md", "- [ ] Write report 🔁 every week\n")
+    result = update_task(vault, "tasks.md", "Write report", recurrence="clear")
+    assert result["updated"] is True
+    assert result["recurrence"] is None
+    content = (vault / "tasks.md").read_text()
+    assert "🔁" not in content
 
 
 def test_update_task_not_found(vault):

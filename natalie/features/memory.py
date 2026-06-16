@@ -4,7 +4,7 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 import frontmatter as fm
 import numpy as np
@@ -275,18 +275,22 @@ def semantic_search(
 
 # ── Conventions ───────────────────────────────────────────────────────────────
 
-_VALID_SOURCES = frozenset(("explicit", "observed"))
+DomainLiteral = Literal["general", "communication", "writing", "code", "research", "files", "calendar"]
+SourceLiteral = Literal["explicit", "observed"]
+
+_VALID_DOMAINS: frozenset[str] = frozenset(get_args(DomainLiteral))
+_VALID_SOURCES: frozenset[str] = frozenset(get_args(SourceLiteral))
 
 
 def convention_add(
     db: sqlite3.Connection,
-    domain: str,
+    domain: DomainLiteral,
     rule: str,
-    source: str = "explicit",
+    source: SourceLiteral = "explicit",
 ) -> int:
     """Store a convention. source must be 'explicit' or 'observed'. Returns new row ID."""
-    if not domain.strip():
-        raise ValueError("domain must not be empty")
+    if domain not in _VALID_DOMAINS:
+        raise ValueError(f"Invalid domain {domain!r}: must be one of {sorted(_VALID_DOMAINS)}")
     if not rule.strip():
         raise ValueError("rule must not be empty")
     if source not in _VALID_SOURCES:
@@ -302,7 +306,7 @@ def convention_add(
 
 def convention_list(
     db: sqlite3.Connection,
-    domain: str | None = None,
+    domain: DomainLiteral | None = None,
 ) -> list[dict[str, Any]]:
     if domain:
         rows = db.execute(
@@ -324,15 +328,15 @@ def convention_delete(db: sqlite3.Connection, convention_id: int) -> bool:
 def convention_update(
     db: sqlite3.Connection,
     convention_id: int,
-    domain: str | None = None,
+    domain: DomainLiteral | None = None,
     rule: str | None = None,
-    source: str | None = None,
+    source: SourceLiteral | None = None,
 ) -> bool:
     """Edit an existing convention in place. At least one field required. Returns True if found."""
     if domain is None and rule is None and source is None:
         raise ValueError("at least one of domain, rule, or source must be provided")
-    if domain is not None and not domain.strip():
-        raise ValueError("domain must not be empty")
+    if domain is not None and domain not in _VALID_DOMAINS:
+        raise ValueError(f"Invalid domain {domain!r}: must be one of {sorted(_VALID_DOMAINS)}")
     if rule is not None and not rule.strip():
         raise ValueError("rule must not be empty")
     if source is not None and source not in _VALID_SOURCES:

@@ -20,6 +20,8 @@ _PRIORITY_EMOJIS: dict[str, str] = {
 _PRIORITY_TO_EMOJI: dict[str, str] = {v: k for k, v in _PRIORITY_EMOJIS.items()}
 _VALID_PRIORITIES: frozenset[str] = frozenset(_PRIORITY_EMOJIS.values())
 
+PriorityLiteral = Literal["highest", "high", "medium", "low", "lowest"]
+
 _PRIORITY_RE: re.Pattern[str] = re.compile(r"[🔺⏫🔼🔽⏬]️?")
 _DUE_DATE_RE: re.Pattern[str] = re.compile(r"📅\s*(\d{4}-\d{2}-\d{2})")
 _RECURRENCE_RE: re.Pattern[str] = re.compile(r"🔁\s*([^📅⏳🛫✅🔺⏫🔼🔽⏬]+)")
@@ -119,7 +121,7 @@ def capture_task(
     task_text: str,
     *,
     due_date: str | None = None,
-    priority: str | None = None,
+    priority: PriorityLiteral | None = None,
     recurrence: str | None = None,
 ) -> dict[str, Any]:
     """Append a new open task to a note (creates the file if missing)."""
@@ -197,7 +199,7 @@ def update_task(
     *,
     new_text: str | None = None,
     due_date: str | Literal["clear"] | None = None,
-    priority: str | Literal["clear"] | None = None,
+    priority: PriorityLiteral | Literal["clear"] | None = None,
     recurrence: str | Literal["clear"] | None = None,
 ) -> dict[str, Any]:
     """Edit an existing open task in place without marking it complete."""
