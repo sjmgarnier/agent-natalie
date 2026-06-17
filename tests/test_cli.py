@@ -296,6 +296,7 @@ def test_init_creates_vibe_hooks_when_enabled(tmp_path):
     hooks = {h["name"]: h for h in hooks_cfg.get("hooks", [])}
     assert "natalie-sync" in hooks
     assert hooks["natalie-sync"]["type"] == "post_agent_turn"
+    assert hooks["natalie-sync"]["command"].endswith("--json")
 
 
 def test_init_vibe_hooks_sets_experimental_flag_when_enabled(tmp_path):

@@ -50,6 +50,7 @@ def main(
 @app.command()
 def sync(
     full: bool = typer.Option(False, "--full", help="Rebuild the entire index from scratch."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON for hook callers (Vibe-compatible)."),
 ) -> None:
     """Sync the vault index (incremental by default)."""
     vault = require_vault()
@@ -58,13 +59,22 @@ def sync(
     db = get_db(vault)
     from .features.sync import sync_vault
 
-    if full:
+    if full and not json_output:
         typer.echo("Building full index... (first run downloads ~130 MB model; a progress bar will appear)")
     try:
         result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
     finally:
         db.close()
-    if full:
+    if json_output:
+        if full:
+            msg = f"Vault rebuilt: {result['embedded']} embedded, {result['removed']} removed."
+        else:
+            msg = (
+                f"Vault synced: {result['indexed']} indexed, "
+                f"{result['removed']} removed, {result['embedded']} embedded."
+            )
+        typer.echo(json.dumps({"system_message": msg}))
+    elif full:
         typer.echo(f"Full rebuild: {result['embedded']} embedded, {result['removed']} removed.")
     else:
         typer.echo(
@@ -410,7 +420,11 @@ def init(
             vault / ".vibe" / "hooks.toml",
             {
                 "hooks": [
-                    {"name": "natalie-sync", "type": "post_agent_turn", "command": f"{natalie_bin} sync"}
+                    {
+                        "name": "natalie-sync",
+                        "type": "post_agent_turn",
+                        "command": f"{natalie_bin} sync --json",
+                    }
                 ]
             },
         )
