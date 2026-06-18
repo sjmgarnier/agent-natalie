@@ -352,6 +352,7 @@ def test_task_capture_passes_metadata_to_tasks_mod() -> None:
         Path("/vault"),
         "tasks.md",
         "File taxes",
+        tags=None,
         due_date="2026-06-30",
         priority="high",
         recurrence="every year",
@@ -398,6 +399,7 @@ def test_task_update_passes_through_dict() -> None:
         "tasks.md",
         "Write report",
         new_text=None,
+        tags=None,
         due_date="2026-07-01",
         priority="high",
         recurrence=None,
@@ -461,6 +463,31 @@ def test_task_list_overdue_flag(vault, db):
 
     result = srv.task_list()
     assert result[0]["overdue"] is True
+
+
+def test_task_list_returns_tags_as_list(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence, tags) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Buy milk", 0, None, None, None, "#task #errands"),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list()
+    assert result[0]["tags"] == ["#task", "#errands"]
+
+
+def test_task_list_returns_empty_tags_for_untagged(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Buy milk", 0, None, None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list()
+    assert result[0]["tags"] == []
 
 
 # ---------------------------------------------------------------------------

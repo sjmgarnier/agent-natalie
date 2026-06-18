@@ -73,7 +73,7 @@ def test_init_db_creates_tasks_table(vault):
 def test_tasks_table_has_expected_columns(vault):
     conn = get_db(vault)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
-    assert cols == {"id", "path", "line", "text", "done", "due_date", "priority", "recurrence"}
+    assert cols == {"id", "path", "line", "text", "done", "due_date", "priority", "recurrence", "tags"}
 
 
 def test_tasks_path_index_exists(vault):

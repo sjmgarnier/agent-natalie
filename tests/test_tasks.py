@@ -7,6 +7,7 @@ from natalie.features.tasks import (
     _VALID_PRIORITIES,
     PriorityLiteral,
     _parse_task_text,
+    _split_tags,
     capture_task,
     complete_task,
     discover_tasks,
@@ -155,7 +156,15 @@ def test_capture_task_rejects_whitespace_task_text(vault):
 
 def test_parse_task_text_plain_title():
     result = _parse_task_text("Write report")
-    assert result == {"text": "Write report", "due_date": None, "priority": None, "recurrence": None}
+    assert result == {
+        "text": "Write report",
+        "tags": [],
+        "leading_tags": [],
+        "trailing_tags": [],
+        "due_date": None,
+        "priority": None,
+        "recurrence": None,
+    }
 
 
 def test_parse_task_text_due_date():
@@ -627,6 +636,219 @@ def test_sync_tasks_is_complete_after_call(vault, db):
     assert total == 3
     rows = db.execute("SELECT text FROM tasks ORDER BY text").fetchall()
     assert [r["text"] for r in rows] == ["Task A", "Task B", "Task C"]
+
+
+# ---------------------------------------------------------------------------
+# _split_tags
+# ---------------------------------------------------------------------------
+
+
+def test_split_tags_leading_only():
+    leading, middle, trailing = _split_tags("#task #work Buy milk")
+    assert leading == ["#task", "#work"]
+    assert middle == "Buy milk"
+    assert trailing == []
+
+
+def test_split_tags_trailing_only():
+    leading, middle, trailing = _split_tags("Buy milk #task")
+    assert leading == []
+    assert middle == "Buy milk"
+    assert trailing == ["#task"]
+
+
+def test_split_tags_mid_sentence_untouched():
+    leading, middle, trailing = _split_tags("Check the #task board")
+    assert leading == []
+    assert middle == "Check the #task board"
+    assert trailing == []
+
+
+def test_split_tags_leading_and_trailing():
+    leading, middle, trailing = _split_tags("#task Buy milk #work")
+    assert leading == ["#task"]
+    assert middle == "Buy milk"
+    assert trailing == ["#work"]
+
+
+def test_split_tags_no_tags():
+    leading, middle, trailing = _split_tags("Buy milk")
+    assert leading == []
+    assert middle == "Buy milk"
+    assert trailing == []
+
+
+def test_split_tags_only_tags():
+    leading, middle, trailing = _split_tags("#task #work")
+    assert leading == ["#task", "#work"]
+    assert middle == ""
+    assert trailing == []
+
+
+# ---------------------------------------------------------------------------
+# _parse_task_text — tags
+# ---------------------------------------------------------------------------
+
+
+def test_parse_task_text_leading_tag():
+    result = _parse_task_text("#task Buy milk")
+    assert result["tags"] == ["#task"]
+    assert result["text"] == "Buy milk"
+
+
+def test_parse_task_text_trailing_tag():
+    result = _parse_task_text("Buy milk #task")
+    assert result["tags"] == ["#task"]
+    assert result["text"] == "Buy milk"
+
+
+def test_parse_task_text_mid_sentence_tag_preserved():
+    result = _parse_task_text("Check the #task board")
+    assert result["tags"] == []
+    assert result["text"] == "Check the #task board"
+
+
+def test_parse_task_text_tags_with_emoji_metadata():
+    result = _parse_task_text("#task Buy milk 📅 2026-06-10")
+    assert result["tags"] == ["#task"]
+    assert result["text"] == "Buy milk"
+    assert result["due_date"] == "2026-06-10"
+
+
+def test_parse_task_text_leading_and_trailing_tags():
+    result = _parse_task_text("#task Buy milk #work")
+    assert result["tags"] == ["#task", "#work"]
+    assert result["leading_tags"] == ["#task"]
+    assert result["trailing_tags"] == ["#work"]
+    assert result["text"] == "Buy milk"
+
+
+# ---------------------------------------------------------------------------
+# capture_task — tags
+# ---------------------------------------------------------------------------
+
+
+def test_capture_task_with_tags(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Buy milk", tags=["#task"])
+    assert "- [ ] #task Buy milk" in note.read_text()
+
+
+def test_capture_task_with_multiple_tags(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Buy milk", tags=["#task", "#errands"])
+    assert "- [ ] #task #errands Buy milk" in note.read_text()
+
+
+def test_capture_task_tags_before_metadata(vault):
+    note = write_note(vault, "tasks.md", "")
+    capture_task(vault, "tasks.md", "Buy milk", tags=["#task"], due_date="2026-12-01")
+    assert "- [ ] #task Buy milk 📅 2026-12-01" in note.read_text()
+
+
+def test_capture_task_tags_in_returned_dict(vault):
+    result = capture_task(vault, "tasks.md", "Buy milk", tags=["#task"])
+    assert result["tags"] == ["#task"]
+
+
+def test_capture_task_without_tags_returns_empty_list(vault):
+    result = capture_task(vault, "tasks.md", "Buy milk")
+    assert result["tags"] == []
+
+
+def test_capture_task_tags_roundtrip(vault):
+    capture_task(vault, "tasks.md", "Buy milk", tags=["#task", "#errands"])
+    tasks = discover_tasks(vault)
+    t = next(t for t in tasks if t["text"] == "Buy milk")
+    assert t["tags"] == ["#task", "#errands"]
+
+
+# ---------------------------------------------------------------------------
+# update_task — tags
+# ---------------------------------------------------------------------------
+
+
+def test_update_task_replace_tags(vault):
+    write_note(vault, "tasks.md", "- [ ] #task Buy milk\n")
+    result = update_task(vault, "tasks.md", "Buy milk", tags=["#work"])
+    assert result["updated"] is True
+    assert result["tags"] == ["#work"]
+    assert "- [ ] #work Buy milk" in (vault / "tasks.md").read_text()
+
+
+def test_update_task_clear_tags(vault):
+    write_note(vault, "tasks.md", "- [ ] #task Buy milk\n")
+    result = update_task(vault, "tasks.md", "Buy milk", tags="clear")
+    assert result["updated"] is True
+    assert result["tags"] == []
+    content = (vault / "tasks.md").read_text()
+    assert "#task" not in content
+    assert "- [ ] Buy milk" in content
+
+
+def test_update_task_omit_tags_preserves_existing(vault):
+    write_note(vault, "tasks.md", "- [ ] #task Buy milk\n")
+    result = update_task(vault, "tasks.md", "Buy milk", due_date="2026-12-01")
+    assert result["updated"] is True
+    assert result["tags"] == ["#task"]
+    assert "- [ ] #task Buy milk 📅 2026-12-01" in (vault / "tasks.md").read_text()
+
+
+def test_update_task_mid_sentence_tag_untouched(vault):
+    write_note(vault, "tasks.md", "- [ ] Check the #task board\n")
+    result = update_task(vault, "tasks.md", "Check the #task board", tags=["#work"])
+    assert result["updated"] is True
+    content = (vault / "tasks.md").read_text()
+    assert "- [ ] #work Check the #task board" in content
+
+
+def test_update_task_tags_alone_is_valid(vault):
+    write_note(vault, "tasks.md", "- [ ] Buy milk\n")
+    result = update_task(vault, "tasks.md", "Buy milk", tags=["#task"])
+    assert result["updated"] is True
+
+
+# ---------------------------------------------------------------------------
+# index_tasks — tags column
+# ---------------------------------------------------------------------------
+
+
+def test_index_tasks_writes_tags_column(vault, db):
+    write_note(vault, "tasks.md", "- [ ] #task Buy milk\n")
+    index_tasks(db, vault, vault / "tasks.md")
+    row = db.execute("SELECT tags FROM tasks WHERE path = 'tasks.md'").fetchone()
+    assert row["tags"] == "#task"
+
+
+def test_index_tasks_null_tags_for_untagged(vault, db):
+    write_note(vault, "tasks.md", "- [ ] Buy milk\n")
+    index_tasks(db, vault, vault / "tasks.md")
+    row = db.execute("SELECT tags FROM tasks WHERE path = 'tasks.md'").fetchone()
+    assert row["tags"] is None
+
+
+def test_index_tasks_multiple_tags_space_separated(vault, db):
+    write_note(vault, "tasks.md", "- [ ] #task #work Buy milk\n")
+    index_tasks(db, vault, vault / "tasks.md")
+    row = db.execute("SELECT tags FROM tasks WHERE path = 'tasks.md'").fetchone()
+    assert row["tags"] == "#task #work"
+
+
+# ---------------------------------------------------------------------------
+# discover_tasks — tags field
+# ---------------------------------------------------------------------------
+
+
+def test_discover_tasks_returns_tags_field(vault):
+    write_note(vault, "tasks.md", "- [ ] #task Buy milk\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["tags"] == ["#task"]
+
+
+def test_discover_tasks_empty_tags_for_untagged(vault):
+    write_note(vault, "tasks.md", "- [ ] Buy milk\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["tags"] == []
 
 
 def test_sync_tasks_concurrent_reader_never_sees_empty_table(vault, db):

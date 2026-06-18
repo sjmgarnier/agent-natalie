@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     done        INTEGER NOT NULL DEFAULT 0,
     due_date    TEXT,
     priority    TEXT,
-    recurrence  TEXT
+    recurrence  TEXT,
+    tags        TEXT
 );
 
 CREATE INDEX IF NOT EXISTS tasks_path_idx ON tasks(path);
@@ -130,4 +131,9 @@ def init_db(vault: Path) -> None:
     conn = get_db(vault)
     conn.executescript(_SCHEMA)
     conn.commit()
+    try:
+        conn.execute("ALTER TABLE tasks ADD COLUMN tags TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists on existing installations
     conn.close()

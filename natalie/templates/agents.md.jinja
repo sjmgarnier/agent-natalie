@@ -74,21 +74,30 @@ At session start, call `task_list`. Surface any overdue tasks (where `overdue` i
 prominently before other open tasks. Skip this if the user has already indicated what they
 want to work on.
 
-`task_list` results include `due_date`, `priority`, `recurrence`, and `overdue` fields
-alongside `text`, `done`, `path`, and `line`.
+`task_list` results include `due_date`, `priority`, `recurrence`, `overdue`, and `tags` fields
+alongside `text`, `done`, `path`, and `line`. `tags` is a list of Obsidian inline tag strings
+(e.g. `["#task", "#work"]`); empty list if none.
 
 Use `task_capture` to add new ones, defaulting to `{{ tasks_note }}` as the path unless
 the user specifies otherwise. When the user provides a due date, priority, or recurrence,
 pass them as `due_date` (YYYY-MM-DD), `priority`, or `recurrence` (e.g. "every week") parameters.
+When the user wants inline tags (e.g. `#task`), pass them as a list in `tags` — do not
+embed tags in `task_text`.
 
 When completing a task, call `task_list` first to find the exact path and clean title
-(the `text` field — no emoji), then call `task_complete(rel_path=..., task_text=...)`
+(the `text` field — no emoji, no tags), then call `task_complete(rel_path=..., task_text=...)`
 using the `path` and `text` fields from `task_list`.
 
-To edit an existing open task without completing it — reschedule, reprioritize, or rename —
-call `task_list` to get the clean title, then call `task_update` with any combination of
-`new_text`, `due_date`, `priority`, or `recurrence`. Omitted fields are preserved. Pass
-`"clear"` to explicitly remove a field (e.g. `due_date="clear"` to remove a deadline).
+To edit an existing open task without completing it — reschedule, reprioritize, rename, or
+retag — call `task_list` to get the clean title, then call `task_update` with any combination
+of `new_text`, `tags`, `due_date`, `priority`, or `recurrence`. Omitted fields are preserved.
+Pass `"clear"` to explicitly remove a field (e.g. `due_date="clear"` to remove a deadline,
+`tags="clear"` to remove all tags). To add a tag without removing existing ones, merge the
+current `tags` list from `task_list` with the new tag and pass the full list.
+
+Note: tags embedded mid-sentence in `task_text` are treated as plain text and are never
+automatically moved. To adopt a mid-sentence tag as a managed tag, also pass `new_text`
+with the tag removed from the text body.
 
 ## System Health
 

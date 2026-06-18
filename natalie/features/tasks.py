@@ -9,6 +9,7 @@ from typing import Any, Literal
 from ..utils import safe_join
 
 _ANY_RE: re.Pattern[str] = re.compile(r"^([ \t]*- \[[ xX]\] )(.+)$", re.MULTILINE)
+_TAG_RE: re.Pattern[str] = re.compile(r"#[a-zA-Z][a-zA-Z0-9\-_/]*")
 
 _PRIORITY_EMOJIS: dict[str, str] = {
     "🔺": "highest",
@@ -32,8 +33,27 @@ _META_EMOJI: str = r"[📅🔺⏫🔼🔽⏬🔁✅⏳🛫]"
 _OPEN_TASK_RE: re.Pattern[str] = re.compile(r"^(\s*)- \[ \] (.+)$")
 
 
-def _parse_task_text(raw: str) -> dict[str, str | None]:
-    """Extract clean title and Tasks plugin metadata from a raw task string."""
+def _split_tags(text: str) -> tuple[list[str], str, list[str]]:
+    """Split text into (leading_tags, middle_text, trailing_tags).
+
+    Only consecutive #tag tokens at the very start and very end are extracted.
+    Tags embedded mid-sentence are left in middle_text unchanged.
+    """
+    tokens = text.split()
+    i = 0
+    while i < len(tokens) and _TAG_RE.fullmatch(tokens[i]):
+        i += 1
+    j = len(tokens) - 1
+    while j >= i and _TAG_RE.fullmatch(tokens[j]):
+        j -= 1
+    leading = tokens[:i]
+    trailing = tokens[j + 1 :]
+    middle = " ".join(tokens[i : j + 1])
+    return leading, middle, trailing
+
+
+def _parse_task_text(raw: str) -> dict[str, Any]:
+    """Extract clean title, inline tags, and Tasks plugin metadata from a raw task string."""
     text = raw
 
     priority: str | None = None
@@ -60,7 +80,16 @@ def _parse_task_text(raw: str) -> dict[str, str | None]:
         recurrence = rm.group(1).strip()
         text = text[: rm.start()] + text[rm.end() :]
 
-    return {"text": text.strip(), "due_date": due_date, "priority": priority, "recurrence": recurrence}
+    leading, middle, trailing = _split_tags(text.strip())
+    return {
+        "text": middle,
+        "tags": leading + trailing,
+        "leading_tags": leading,
+        "trailing_tags": trailing,
+        "due_date": due_date,
+        "priority": priority,
+        "recurrence": recurrence,
+    }
 
 
 def _format_task_metadata(
@@ -77,6 +106,25 @@ def _format_task_metadata(
     if due_date:
         parts.append(f"📅 {due_date}")
     return " ".join(parts)
+
+
+def _format_task_line(
+    text: str,
+    leading_tags: list[str],
+    trailing_tags: list[str],
+    due_date: str | None,
+    priority: str | None,
+    recurrence: str | None,
+    indent: str = "",
+) -> str:
+    """Assemble a canonical open-task line: #leading text #trailing 🔁 📅 🔺"""
+    parts = leading_tags + ([text] if text else []) + trailing_tags
+    content = " ".join(p for p in parts if p)
+    metadata = _format_task_metadata(due_date, priority, recurrence)
+    line = f"{indent}- [ ] {content}"
+    if metadata:
+        line += f" {metadata}"
+    return line
 
 
 def discover_tasks(vault: Path, today: datetime.date | None = None) -> list[dict[str, Any]]:
@@ -103,6 +151,7 @@ def discover_tasks(vault: Path, today: datetime.date | None = None) -> list[dict
             tasks.append(
                 {
                     "text": parsed["text"],
+                    "tags": parsed["tags"],
                     "done": "[x]" in marker.lower(),
                     "path": rel,
                     "line": text[: m.start()].count("\n") + 1,
@@ -120,6 +169,7 @@ def capture_task(
     rel_path: str,
     task_text: str,
     *,
+    tags: list[str] | None = None,
     due_date: str | None = None,
     priority: PriorityLiteral | None = None,
     recurrence: str | None = None,
@@ -135,11 +185,7 @@ def capture_task(
         except ValueError:
             raise ValueError(f"due_date must be in YYYY-MM-DD format, got {due_date!r}")
 
-    metadata = _format_task_metadata(due_date, priority, recurrence)
-    line = f"- [ ] {task_text}"
-    if metadata:
-        line += f" {metadata}"
-    line += "\n"
+    line = _format_task_line(task_text, tags or [], [], due_date, priority, recurrence) + "\n"
 
     full = safe_join(vault, rel_path)
     if full.exists():
@@ -154,6 +200,7 @@ def capture_task(
         "captured": True,
         "path": rel_path,
         "task": task_text,
+        "tags": list(tags) if tags else [],
         "due_date": due_date,
         "priority": priority,
         "recurrence": recurrence,
@@ -198,13 +245,14 @@ def update_task(
     task_text: str,
     *,
     new_text: str | None = None,
+    tags: list[str] | Literal["clear"] | None = None,
     due_date: str | Literal["clear"] | None = None,
     priority: PriorityLiteral | Literal["clear"] | None = None,
     recurrence: str | Literal["clear"] | None = None,
 ) -> dict[str, Any]:
     """Edit an existing open task in place without marking it complete."""
-    if new_text is None and due_date is None and priority is None and recurrence is None:
-        raise ValueError("at least one of new_text, due_date, priority, or recurrence must be provided")
+    if new_text is None and tags is None and due_date is None and priority is None and recurrence is None:
+        raise ValueError("at least one of new_text, tags, due_date, priority, or recurrence must be provided")
     if priority is not None and priority != "clear" and priority not in _VALID_PRIORITIES:
         raise ValueError(f"priority must be one of {sorted(_VALID_PRIORITIES)} or 'clear', got {priority!r}")
     if due_date is not None and due_date != "clear":
@@ -219,6 +267,7 @@ def update_task(
             "updated": False,
             "path": rel_path,
             "task": task_text,
+            "tags": [],
             "due_date": None,
             "priority": None,
             "recurrence": None,
@@ -236,6 +285,9 @@ def update_task(
             continue
 
         final_text = new_text if new_text is not None else task_text
+        final_leading: list[str] = (
+            [] if tags == "clear" else (list(tags) if tags is not None else parsed["leading_tags"])
+        )
         final_due = (
             None if due_date == "clear" else (due_date if due_date is not None else parsed["due_date"])
         )
@@ -248,20 +300,21 @@ def update_task(
             else (recurrence if recurrence is not None else parsed["recurrence"])
         )
 
-        metadata = _format_task_metadata(final_due, final_prio, final_recur)
         indent = m.group(1)
-        new_line = f"{indent}- [ ] {final_text}"
-        if metadata:
-            new_line += f" {metadata}"
+        new_line = _format_task_line(
+            final_text, final_leading, parsed["trailing_tags"], final_due, final_prio, final_recur, indent
+        )
         stripped_len = len(line.rstrip("\n\r"))
         ending = line[stripped_len:] or "\n"
         lines[i] = new_line + ending
 
         full.write_text("".join(lines), encoding="utf-8")
+        final_tags = final_leading + parsed["trailing_tags"]
         return {
             "updated": True,
             "path": rel_path,
             "task": final_text,
+            "tags": final_tags,
             "due_date": final_due,
             "priority": final_prio,
             "recurrence": final_recur,
@@ -271,6 +324,7 @@ def update_task(
         "updated": False,
         "path": rel_path,
         "task": task_text,
+        "tags": [],
         "due_date": None,
         "priority": None,
         "recurrence": None,
@@ -297,10 +351,20 @@ def index_tasks(db: sqlite3.Connection, vault: Path, note_path: Path, *, commit:
         parsed = _parse_task_text(raw_text)
         done = 1 if "[x]" in marker.lower() else 0
         line = text[: m.start()].count("\n") + 1
+        tags_str = " ".join(parsed["tags"]) if parsed["tags"] else None
         db.execute(
-            "INSERT OR REPLACE INTO tasks (path, line, text, done, due_date, priority, recurrence) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (rel, line, parsed["text"], done, parsed["due_date"], parsed["priority"], parsed["recurrence"]),
+            "INSERT OR REPLACE INTO tasks (path, line, text, done, due_date, priority, recurrence, tags) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                rel,
+                line,
+                parsed["text"],
+                done,
+                parsed["due_date"],
+                parsed["priority"],
+                parsed["recurrence"],
+                tags_str,
+            ),
         )
         count += 1
 

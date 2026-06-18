@@ -341,14 +341,14 @@ def task_list(done: bool = False) -> list[dict[str, Any]]:
     today = datetime.date.today().isoformat()
     if done:
         rows = db.execute(
-            "SELECT path, line, text, done, due_date, priority, recurrence, "
+            "SELECT path, line, text, done, due_date, priority, recurrence, tags, "
             "CASE WHEN done=0 AND due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue "
             "FROM tasks ORDER BY due_date ASC NULLS LAST, path",
             (today,),
         ).fetchall()
     else:
         rows = db.execute(
-            "SELECT path, line, text, done, due_date, priority, recurrence, "
+            "SELECT path, line, text, done, due_date, priority, recurrence, tags, "
             "CASE WHEN due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue "
             "FROM tasks WHERE done=0 ORDER BY due_date ASC NULLS LAST, path",
             (today,),
@@ -358,6 +358,7 @@ def task_list(done: bool = False) -> list[dict[str, Any]]:
         t = dict(r)
         t["done"] = bool(t["done"])
         t["overdue"] = bool(t["overdue"])
+        t["tags"] = (t.get("tags") or "").split() or []
         result.append(t)
     return result
 
@@ -366,19 +367,21 @@ def task_list(done: bool = False) -> list[dict[str, Any]]:
 def task_capture(
     rel_path: str,
     task_text: str,
+    tags: list[str] | None = None,
     due_date: str | None = None,
     priority: PriorityLiteral | None = None,
     recurrence: str | None = None,
 ) -> dict[str, Any]:
     """Add a new open task to a vault note.
 
+    Pass Obsidian inline tags (e.g. ["#task", "#work"]) via tags — do not embed them in task_text.
     Prefer over creating a markdown checklist or using note_write for to-do items.
     """
     if not rel_path.strip():
         raise ValueError("rel_path must not be empty")
     vault = _get_vault()
     result = tasks_mod.capture_task(
-        vault, rel_path, task_text, due_date=due_date, priority=priority, recurrence=recurrence
+        vault, rel_path, task_text, tags=tags, due_date=due_date, priority=priority, recurrence=recurrence
     )
     tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
     return result
@@ -402,12 +405,14 @@ def task_update(
     rel_path: str,
     task_text: str,
     new_text: str | None = None,
+    tags: list[str] | Literal["clear"] | None = None,
     due_date: str | Literal["clear"] | None = None,
     priority: PriorityLiteral | Literal["clear"] | None = None,
     recurrence: str | Literal["clear"] | None = None,
 ) -> dict[str, Any]:
-    """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence.
+    """Edit an existing open task in place. Pass 'clear' to remove due_date/priority/recurrence/tags.
 
+    To replace inline tags pass a list (e.g. tags=["#task", "#work"]); omit to preserve existing.
     Prefer over editing the markdown file directly.
     """
     if not rel_path.strip():
@@ -420,6 +425,7 @@ def task_update(
         rel_path,
         task_text,
         new_text=new_text,
+        tags=tags,
         due_date=due_date,
         priority=priority,
         recurrence=recurrence,
