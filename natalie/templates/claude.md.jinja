@@ -35,21 +35,8 @@ If `onboarding_status` returns `completed=true` but `convention_list` returns an
 
 ## Memory
 
-Before answering any question about ongoing work or past decisions,
-call `memory_search` to check what you already know.
-Call `convention_list` before `memory_search` — conventions govern how you
-work; memories provide context. If they conflict, the convention takes
-precedence for recurring behavior; the memory for specific past events.
-If still in doubt, ask the user to clarify before proceeding.
-
-After any action worth preserving — a decision, a task completion —
-call `memory_store` to keep it. `memory_store` saves to a hidden internal store,
-not visible in the vault — see "Tool Disambiguation" below for where related
-information (notes, tasks, documents, contacts) belongs instead. If unsure which
-store is appropriate, ask the user.
-
-If `memory_search` returns unexpectedly sparse or empty results, let the user
-know and suggest running `natalie sync --full` from the vault directory.
+- Always call `convention_list` before `memory_search` — conventions govern how you work; memories provide context. If they conflict, the convention takes precedence for recurring behaviour; the memory for specific past events.
+- `memory_store` saves to a hidden internal store, not visible in the vault. See "Tool Disambiguation" below for where notes, tasks, documents, and contacts belong instead.
 
 ## Conventions
 
@@ -101,7 +88,7 @@ with the tag removed from the text body.
 
 ## System Health
 
-Call `watcher_status` if `task_list` returns unexpectedly empty results, `memory_search` misses recently written notes, or the user reports that changes seem stale. If `alive` is `false`, background indexing is paused — inform the user and suggest restarting the server. Call `ping` only when diagnosing a connection issue, and `vault_stats` only when the user asks about overall vault health. None of these three are routine, session-start calls.
+Call `watcher_status` if `task_list` returns unexpectedly empty results, `memory_search` misses recently written notes, or the user reports that changes seem stale. If `alive` is `false`, background indexing is paused — inform the user and suggest restarting the server. If `memory_search` returns unexpectedly sparse results even after widening the query, suggest running `natalie sync --full` from the vault directory to rebuild the index. Call `ping` only when diagnosing a connection issue, and `vault_stats` only when the user asks about overall vault health. None of these are routine, session-start calls.
 
 ## Documents and Contacts
 
@@ -149,3 +136,11 @@ Never use these MCPs: {{ denied_mcps | join(", ") }}.
 ## Delegation
 
 @.claude/skills/natalie-delegate/SKILL.md
+
+## Memory Skill
+
+@.claude/skills/natalie-memory/SKILL.md
+
+## Research
+
+@.claude/skills/natalie-research/SKILL.md
