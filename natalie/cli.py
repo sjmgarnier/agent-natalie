@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import tomllib
 from importlib.metadata import PackageNotFoundError
@@ -349,6 +350,14 @@ def init(
         post_tool_use.append(natalie_hook_entry)
     settings_path.write_text(json.dumps(existing_settings, indent=2), encoding="utf-8")
 
+    # .claude/agents/ — Claude Code subagent definition (overwrite on upgrade)
+    claude_agents_dir = vault / ".claude" / "agents"
+    claude_agents_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "claude" / "natalie-assistant.md",
+        claude_agents_dir / "natalie-assistant.md",
+    )
+
     opencode_cfg = {
         "$schema": "https://opencode.ai/config.json",
         "mcp": {
@@ -361,6 +370,14 @@ def init(
     }
     # opencode.json — merge so other MCP entries are preserved
     _merge_json(vault / "opencode.json", opencode_cfg)
+
+    # opencode.json — merge natalie-assistant subagent definition
+    # Uses "agent" as the top-level key (matches OpenCode config schema alongside "mcp").
+    # _deep_merge is keyed on "natalie-assistant" dict key — idempotent on re-run.
+    _agent_oc = json.loads(
+        (Path(__file__).parent / "agents" / "opencode" / "natalie-assistant.json").read_text(encoding="utf-8")
+    )
+    _merge_json(vault / "opencode.json", _agent_oc)
 
     hooks_cfg = {"tool.execute.after": {"command": f"{natalie_bin} sync"}}
     # .opencode/hooks.json — merge
@@ -429,6 +446,20 @@ def init(
             },
         )
 
+    # .vibe/agents/ — Mistral Vibe subagent TOML (project-level definition)
+    (vault / ".vibe" / "agents").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "vibe" / "natalie-assistant.toml",
+        vault / ".vibe" / "agents" / "natalie-assistant.toml",
+    )
+    # ~/.vibe/prompts/ — system prompt for the subagent (user-level, outside vault)
+    vibe_prompts_dir = Path.home() / ".vibe" / "prompts"
+    vibe_prompts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "vibe" / "natalie-assistant.md",
+        vibe_prompts_dir / "natalie-assistant.md",
+    )
+
     # Goose — global ~/.config/goose/config.yaml (MCP extension)
     goose_config_dir = Path.home() / ".config" / "goose"
     goose_config_dir.mkdir(parents=True, exist_ok=True)
@@ -469,6 +500,19 @@ def init(
         }
     }
     _merge_json(goose_plugin_dir / "hooks" / "hooks.json", goose_hooks)
+
+    # Goose — recipe: natalie-assistant
+    (vault / ".agents" / "recipes").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "goose" / "natalie-assistant.yaml",
+        vault / ".agents" / "recipes" / "natalie-assistant.yaml",
+    )
+    if not os.environ.get("GOOSE_RECIPE_PATH"):
+        typer.echo(
+            f"\nNote: GOOSE_RECIPE_PATH is not set. To make the natalie-assistant recipe "
+            f"available in Goose, add {vault / '.agents' / 'recipes'} to GOOSE_RECIPE_PATH "
+            f"in your shell profile."
+        )
 
     # Goose — project plugin: companion skill (copy from installed package)
     skill_src = Path(__file__).parent / "skills" / "natalie-contact-enrichment" / "SKILL.md"

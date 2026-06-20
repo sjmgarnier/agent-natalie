@@ -215,6 +215,27 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 
 ---
 
+## Companion skills & agents
+
+`natalie init` installs two companion components alongside the MCP server:
+
+### natalie-delegate (skill)
+
+A skill loaded into Natalie's context on every session. It teaches Natalie when and how to delegate tasks to `natalie-assistant` — covering suitability criteria (complexity, duration, parallelisability vs. criticality, uncertainty, cost-to-specify), brief format, completion verification, and failure fallback. Installed to `<vault>/.agents/skills/natalie-delegate/SKILL.md` and symlinked into `.claude/skills/` for Claude Code.
+
+### natalie-assistant (subagent)
+
+A pre-configured background subagent with full access to natalie MCP tools. Natalie can delegate long-running or parallelisable tasks to it — research, filing, enrichment — and the assistant stores all results in the vault before returning. Installed per client:
+
+| Client | File |
+|--------|------|
+| Claude Code | `<vault>/.claude/agents/natalie-assistant.md` |
+| OpenCode | merged into `<vault>/opencode.json` under `"agent"` key |
+| Mistral Vibe | `<vault>/.vibe/agents/natalie-assistant.toml` + `~/.vibe/prompts/natalie-assistant.md` |
+| Goose | `<vault>/.agents/recipes/natalie-assistant.yaml` (add `<vault>/.agents/recipes/` to `GOOSE_RECIPE_PATH`) |
+
+---
+
 ## Personas
 
 | Preset | Character | Source |

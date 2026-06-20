@@ -145,6 +145,46 @@ def test_init_copies_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert "natalie-contact-enrichment" in skill.read_text()
 
 
+def test_init_writes_goose_recipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("GOOSE_RECIPE_PATH", raising=False)
+    runner.invoke(app, ["init", str(vault)], input="y\n")
+    recipe = vault / ".agents" / "recipes" / "natalie-assistant.yaml"
+    assert recipe.exists()
+    data = _load_yaml(recipe)
+    assert data["id"] == "natalie-assistant"
+    assert "natalie" in data["extensions"]
+
+
+def test_init_goose_recipe_creates_recipes_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("GOOSE_RECIPE_PATH", raising=False)
+    runner.invoke(app, ["init", str(vault)], input="y\n")
+    assert (vault / ".agents" / "recipes").is_dir()
+
+
+def test_init_warns_when_goose_recipe_path_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("GOOSE_RECIPE_PATH", raising=False)
+    result = runner.invoke(app, ["init", str(vault)], input="y\n")
+    assert "GOOSE_RECIPE_PATH" in result.output
+
+
+def test_init_no_goose_recipe_path_warning_when_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("GOOSE_RECIPE_PATH", str(vault / ".agents" / "recipes"))
+    result = runner.invoke(app, ["init", str(vault)], input="y\n")
+    assert "GOOSE_RECIPE_PATH is not set" not in result.output
+
+
 def test_init_goose_preserves_existing_goose_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()

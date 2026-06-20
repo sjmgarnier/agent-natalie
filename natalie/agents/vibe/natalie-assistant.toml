@@ -1,0 +1,6 @@
+agent_type = "subagent"
+display_name = "Natalie's Assistant"
+description = "Handles research, filing, and multi-step background tasks delegated by Natalie."
+safety = "safe"
+system_prompt_id = "natalie-assistant"
+enabled_tools = ["natalie"]
