@@ -70,12 +70,11 @@ def test_merge_yaml_creates_parent_dirs(tmp_path: Path) -> None:
     assert data["key"] == "value"
 
 
-def test_merge_yaml_handles_corrupt_file(tmp_path: Path) -> None:
+def test_merge_yaml_raises_on_corrupt_file(tmp_path: Path) -> None:
     target = tmp_path / "config.yaml"
     target.write_text("{{invalid: yaml: [}", encoding="utf-8")
-    _merge_yaml(target, {"extensions": {"natalie": {"enabled": True}}})
-    data = _load_yaml(target)
-    assert data["extensions"]["natalie"]["enabled"] is True
+    with pytest.raises(Exception):
+        _merge_yaml(target, {"extensions": {"natalie": {"enabled": True}}})
 
 
 # ---------------------------------------------------------------------------

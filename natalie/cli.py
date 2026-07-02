@@ -159,10 +159,7 @@ def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> None:
 def _merge_json(path: Path, update: dict[str, Any]) -> None:
     """Read existing JSON if present, deep-merge update into it, write back."""
     if path.exists():
-        try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            existing = {}
+        existing = json.loads(path.read_text(encoding="utf-8"))
     else:
         existing = {}
     _deep_merge(existing, update)
@@ -203,11 +200,8 @@ def _deep_merge_toml(base: dict[str, Any], update: dict[str, Any]) -> None:
 def _merge_toml(path: Path, update: dict[str, Any]) -> None:
     """Read existing TOML if present, deep-merge *update* into it, write back."""
     if path.exists():
-        try:
-            with open(path, "rb") as f:
-                existing: dict[str, Any] = dict(tomllib.load(f))
-        except (tomllib.TOMLDecodeError, OSError):
-            existing = {}
+        with open(path, "rb") as f:
+            existing: dict[str, Any] = dict(tomllib.load(f))
     else:
         existing = {}
     _deep_merge_toml(existing, update)
@@ -222,11 +216,8 @@ def _merge_yaml(path: Path, update: dict[str, Any]) -> None:
     yaml = _YAML()
     yaml.preserve_quotes = True
     if path.exists():
-        try:
-            with open(path, encoding="utf-8") as f:
-                existing: Any = yaml.load(f) or {}
-        except Exception:
-            existing = {}
+        with open(path, encoding="utf-8") as f:
+            existing: Any = yaml.load(f) or {}
     else:
         existing = {}
     _deep_merge(existing, update)
@@ -323,10 +314,7 @@ def init(
     # .claude/settings.json — merge natalie PostToolUse hook, preserve all other hooks
     settings_path = vault / ".claude" / "settings.json"
     if settings_path.exists():
-        try:
-            existing_settings: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            existing_settings = {}
+        existing_settings: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
     else:
         existing_settings = {}
     natalie_hook_entry: dict[str, Any] = {
@@ -389,11 +377,8 @@ def init(
     vibe_config_path = vault / ".vibe" / "config.toml"
     existing_vibe_cfg: dict[str, Any] = {}
     if vibe_config_path.exists():
-        try:
-            with open(vibe_config_path, "rb") as f:
-                existing_vibe_cfg = dict(tomllib.load(f))
-        except (tomllib.TOMLDecodeError, OSError):
-            pass
+        with open(vibe_config_path, "rb") as f:
+            existing_vibe_cfg = dict(tomllib.load(f))
 
     if existing_vibe_cfg.get("enable_experimental_hooks"):
         enable_vibe_hooks = True
@@ -419,11 +404,8 @@ def init(
     # Layering: global → existing project config (user overrides) → natalie's additions.
     global_vibe_path = Path.home() / ".vibe" / "config.toml"
     if global_vibe_path.exists() and global_vibe_path != vibe_config_path:
-        try:
-            with open(global_vibe_path, "rb") as f:
-                global_vibe_cfg: dict[str, Any] = dict(tomllib.load(f))
-        except (tomllib.TOMLDecodeError, OSError):
-            global_vibe_cfg = {}
+        with open(global_vibe_path, "rb") as f:
+            global_vibe_cfg: dict[str, Any] = dict(tomllib.load(f))
     else:
         global_vibe_cfg = {}
 
