@@ -4,11 +4,20 @@ from pathlib import Path
 
 
 def safe_join(base: Path, user_part: str) -> Path:
-    """Resolve user_part relative to base, raising ValueError if it escapes."""
+    """Resolve user_part relative to base, raising ValueError if it escapes.
+
+    Also rejects paths landing inside base/.natalie/ (internal bookkeeping:
+    the sqlite DB, config.toml, etc.), except .natalie/entries/, which is the
+    memory_store default-write location.
+    """
     full = (base / user_part).resolve()
     base_resolved = base.resolve()
     if not full.is_relative_to(base_resolved):
         raise ValueError(f"path escapes base directory: {user_part!r}")
+    natalie_dir = base_resolved / ".natalie"
+    entries_dir = natalie_dir / "entries"
+    if full.is_relative_to(natalie_dir) and not full.is_relative_to(entries_dir):
+        raise ValueError(f"path targets a protected internal file: {user_part!r}")
     return full
 
 

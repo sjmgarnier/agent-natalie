@@ -151,6 +151,17 @@ def test_capture_task_rejects_whitespace_task_text(vault):
         capture_task(vault, "Note.md", "   ")
 
 
+def test_capture_task_rejects_embedded_newline(vault):
+    with pytest.raises(ValueError, match="newline"):
+        capture_task(vault, "Note.md", "buy milk\n- [x] fake other task")
+
+
+def test_update_task_rejects_embedded_newline_in_new_text(vault):
+    capture_task(vault, "Note.md", "original task")
+    with pytest.raises(ValueError, match="newline"):
+        update_task(vault, "Note.md", "original task", new_text="edited\n- [x] fake other task")
+
+
 # --- _parse_task_text ---
 
 
@@ -171,6 +182,13 @@ def test_parse_task_text_due_date():
     result = _parse_task_text("Write report 📅 2026-06-10")
     assert result["text"] == "Write report"
     assert result["due_date"] == "2026-06-10"
+
+
+def test_parse_task_text_malformed_due_date_left_in_text():
+    """An unparseable due: annotation must not silently vanish from the task text."""
+    result = _parse_task_text("Write report 📅 2026-13-45")
+    assert result["due_date"] is None
+    assert "2026-13-45" in result["text"]
 
 
 def test_parse_task_text_priority_all_levels():

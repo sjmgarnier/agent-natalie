@@ -1,5 +1,8 @@
+import logging
 import sqlite3
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS notes (
@@ -134,6 +137,9 @@ def init_db(vault: Path) -> None:
     try:
         conn.execute("ALTER TABLE tasks ADD COLUMN tags TEXT")
         conn.commit()
-    except sqlite3.OperationalError:
-        pass  # column already exists on existing installations
+    except sqlite3.OperationalError as e:
+        if "duplicate column" not in str(e).lower():
+            _log.exception("db migration failed: unexpected error adding tasks.tags column")
+            raise
+        # column already exists on existing installations
     conn.close()

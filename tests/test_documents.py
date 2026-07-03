@@ -119,7 +119,7 @@ def test_file_document_warns_on_sha_match(vault, config, db):
 
 
 def test_file_document_rejects_path_traversal(vault, config, db):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="escapes base directory"):
         file_document(vault, config, db, "../../etc/passwd", "desc")
 
 

@@ -320,6 +320,44 @@ def test_contact_search_tool_delegates_to_contacts_mod(monkeypatch: pytest.Monke
     assert result == mock_results
 
 
+def test_contact_search_clamps_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_search = MagicMock(return_value=[])
+    with (
+        patch("natalie.server._get_db", return_value=MagicMock()),
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_config", return_value=MagicMock()),
+        patch("natalie.server.contacts_mod.search_contacts", mock_search),
+    ):
+        srv.contact_search("Alice", limit=10_000_000)
+    assert mock_search.call_args.kwargs["limit"] == srv._MAX_LIMIT
+
+
+def test_memory_search_clamps_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_kw = MagicMock(return_value=[])
+    mock_se = MagicMock(return_value=[])
+    with (
+        patch("natalie.server._get_db", return_value=MagicMock()),
+        patch("natalie.server._get_config", return_value=MagicMock()),
+        patch("natalie.server.mem.keyword_search", mock_kw),
+        patch("natalie.server.mem.semantic_search", mock_se),
+    ):
+        srv.memory_search("query", limit=10_000_000)
+    assert mock_kw.call_args.kwargs["limit"] == srv._MAX_LIMIT * 2
+    assert mock_se.call_args.kwargs["limit"] == srv._MAX_LIMIT * 2
+
+
+def test_document_list_clamps_top_n(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_list = MagicMock(return_value=[])
+    with (
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_config", return_value=MagicMock()),
+        patch("natalie.server._get_db", return_value=MagicMock()),
+        patch("natalie.server.docs_mod.list_documents", mock_list),
+    ):
+        srv.document_list(top_n=10_000_000)
+    assert mock_list.call_args.args[7] == srv._MAX_LIMIT
+
+
 # ---------------------------------------------------------------------------
 # task_capture / task_complete — metadata delegation
 # ---------------------------------------------------------------------------

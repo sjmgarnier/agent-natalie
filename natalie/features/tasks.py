@@ -70,9 +70,9 @@ def _parse_task_text(raw: str) -> dict[str, Any]:
         try:
             datetime.date.fromisoformat(raw_due)
             due_date = raw_due
+            text = text[: dm.start()] + text[dm.end() :]
         except ValueError:
             due_date = None
-        text = text[: dm.start()] + text[dm.end() :]
 
     recurrence: str | None = None
     rm = _RECURRENCE_RE.search(text)
@@ -118,6 +118,8 @@ def _format_task_line(
     indent: str = "",
 ) -> str:
     """Assemble a canonical open-task line: #leading text #trailing 🔁 📅 🔺"""
+    if "\n" in text or "\r" in text:
+        raise ValueError(f"task text must not contain newlines: {text!r}")
     parts = leading_tags + ([text] if text else []) + trailing_tags
     content = " ".join(p for p in parts if p)
     metadata = _format_task_metadata(due_date, priority, recurrence)

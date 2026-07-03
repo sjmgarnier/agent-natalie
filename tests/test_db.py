@@ -1,3 +1,7 @@
+import sqlite3
+
+import pytest
+
 from natalie.db import get_db, init_db
 
 
@@ -48,6 +52,30 @@ def test_init_db_is_idempotent(vault):
     conn = get_db(vault)
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     assert "notes" in tables
+
+
+class _FlakyConnection(sqlite3.Connection):
+    """Connection subclass that simulates a non-'duplicate column' failure on the tags migration."""
+
+    def execute(self, sql, *args, **kwargs):  # type: ignore[override]
+        if isinstance(sql, str) and sql.strip().startswith("ALTER TABLE tasks ADD COLUMN tags"):
+            raise sqlite3.OperationalError("database is locked")
+        return super().execute(sql, *args, **kwargs)
+
+
+def test_init_db_reraises_unexpected_operational_error_on_migration(tmp_path, monkeypatch):
+    """Only 'duplicate column' should be swallowed; any other OperationalError must propagate."""
+    (tmp_path / ".natalie").mkdir()
+    original_connect = sqlite3.connect
+
+    def fake_connect(*args, **kwargs):
+        kwargs["factory"] = _FlakyConnection
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", fake_connect)
+
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        init_db(tmp_path)
 
 
 # ---------------------------------------------------------------------------

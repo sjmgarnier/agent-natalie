@@ -27,6 +27,11 @@ from .vault import require_vault
 
 mcp = FastMCP("natalie")
 
+# Upper bound for caller-supplied limit/top_n params — prevents an agent
+# passing an unbounded value from triggering an oversized DB scan or
+# embedding computation.
+_MAX_LIMIT = 200
+
 # Module-level state — populated in main() before mcp.run()
 _vault: Path | None = None
 _config: NatalieConfig | None = None
@@ -105,6 +110,7 @@ def memory_search(query: str, limit: int = 10, collection: str | None = None) ->
 
     Prefer over Read, Grep, or file-based search when looking up prior context or stored facts.
     """
+    limit = min(limit, _MAX_LIMIT)
     db = _get_db()
     config = _get_config()
     kw = mem.keyword_search(db, query, limit=limit * 2, collection=collection)
@@ -481,7 +487,7 @@ def document_list(
         project,
         doc_type,
         tags,
-        top_n,
+        min(top_n, _MAX_LIMIT),
         include_metadata,
     )
 
@@ -522,7 +528,12 @@ def contact_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """
     config = _get_config()
     return contacts_mod.search_contacts(
-        _get_db(), _get_vault(), config, query, limit=limit, model_name=config.memory.embedding_model
+        _get_db(),
+        _get_vault(),
+        config,
+        query,
+        limit=min(limit, _MAX_LIMIT),
+        model_name=config.memory.embedding_model,
     )
 
 

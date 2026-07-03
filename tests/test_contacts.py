@@ -73,7 +73,7 @@ def test_update_contact_rejects_traversal_in_directory(vault, config):
     from natalie.config import ContactsConfig, NatalieConfig
 
     bad_config = NatalieConfig(contacts=ContactsConfig(directory="../../etc"))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="escapes base directory"):
         update_contact(vault, bad_config, "passwd", {"name": "Evil"})
 
 
