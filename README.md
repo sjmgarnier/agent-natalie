@@ -195,6 +195,7 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 | `memory_store` | Store an outside-vault knowledge entry |
 | `note_read` | Read a vault note by path |
 | `note_write` | Write or update a vault note |
+| `note_move` | Relocate or rename a vault note, keeping the index and other notes' links intact |
 | `note_frontmatter_update` | Merge fields into a note's frontmatter (tags, status, etc.) without touching the body |
 | `task_list` | List open (or all) tasks across the vault |
 | `task_capture` | Add a task to a note |

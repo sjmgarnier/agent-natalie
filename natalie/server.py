@@ -16,6 +16,7 @@ from .db import get_db, init_db
 from .features import browse as browse_mod
 from .features import contacts as contacts_mod
 from .features import documents as docs_mod
+from .features import links as links_mod
 from .features import memory as mem
 from .features import onboarding as onboarding_mod
 from .features import tasks as tasks_mod
@@ -246,10 +247,58 @@ def note_write(path: str, content: str) -> dict[str, Any]:
     db = _get_db()
     full = safe_join(vault, path)
     full.parent.mkdir(parents=True, exist_ok=True)
+    content = links_mod.normalize_wikilinks(db, content)
     full.write_text(content, encoding="utf-8")
     mem.index_note(db, vault, full)
     tasks_mod.index_tasks(db, vault, full)
     return {"written": True, "path": path}
+
+
+@mcp.tool()
+def note_move(from_path: str, to_path: str) -> dict[str, Any]:
+    """Relocate or rename a vault note, keeping the index and other notes' links intact.
+
+    Prefer over the Write/Bash tools for moving vault notes: preserves the note's
+    embedding and task rows (no reindex), and rewrites other notes' wikilinks that
+    pointed at the old location. Markdown (.md) files only. Fails if the
+    destination already exists.
+    """
+    if not from_path.strip() or not to_path.strip():
+        raise ValueError("from_path and to_path must not be empty")
+    require_md_path(from_path, "Use the Write tool to move non-Markdown vault files.")
+    require_md_path(to_path, "Use the Write tool to move non-Markdown vault files.")
+    vault = _get_vault()
+    db = _get_db()
+    src = safe_join(vault, from_path)
+    dest = safe_join(vault, to_path)
+    if not src.exists():
+        raise ValueError(f"Note not found: {from_path}")
+    if dest.exists():
+        raise ValueError(f"Destination already exists: {to_path}")
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(dest)
+    mem.relocate_note(db, vault, from_path, to_path)
+
+    links_updated_in: list[str] = []
+    for candidate_path in links_mod.find_backlink_candidates(db, from_path, to_path):
+        full = safe_join(vault, candidate_path)
+        if not full.exists():
+            continue
+        content = full.read_text(encoding="utf-8")
+        new_content, changed = links_mod.rewrite_links_in_content(db, content, from_path, to_path)
+        if changed:
+            full.write_text(new_content, encoding="utf-8")
+            mem.index_note(db, vault, full)
+            tasks_mod.index_tasks(db, vault, full)
+            links_updated_in.append(candidate_path)
+
+    return {
+        "moved": True,
+        "from_path": from_path,
+        "to_path": to_path,
+        "links_updated_in": links_updated_in,
+    }
 
 
 @mcp.tool()

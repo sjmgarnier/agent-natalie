@@ -31,4 +31,4 @@ Your default model is Haiku. If Natalie's delegation brief specifies a different
 
 ## Tool Priority
 
-When natalie provides a tool for the task at hand (memory_search, note_write, task_capture, document_file, contact_update, etc.), use it in preference to built-in tools (Read, Write, Edit, Bash). natalie tools write to the vault's indexed stores; built-in tools do not.
+When natalie provides a tool for the task at hand (memory_search, note_write, task_capture, document_file, contact_update, etc.), use it in preference to built-in tools (Read, Write, Edit, Bash). natalie tools write to the vault's indexed stores; built-in tools do not. To move or rename a vault note, use `note_move` — never `Bash`/`mv` — it keeps the index and other notes' links intact.

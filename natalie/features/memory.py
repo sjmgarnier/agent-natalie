@@ -137,6 +137,36 @@ def remove_note(db: sqlite3.Connection, rel_path: str) -> None:
     db.commit()
 
 
+def relocate_note(db: sqlite3.Connection, vault: Path, old_path: str, new_path: str) -> bool:
+    """Update notes/tasks rows in place after a note has moved from old_path to new_path.
+
+    Preserves note_id and embeddings (unlike delete+reindex). Recomputes title
+    when it was filename-derived (no frontmatter override); a frontmatter-set
+    title is left unchanged. No-op (returns False) if old_path has no indexed
+    row — this makes the function idempotent when a note_move call and the
+    passive watcher's own detection of the same rename both invoke it.
+    """
+    existing = db.execute("SELECT id FROM notes WHERE path = ?", (old_path,)).fetchone()
+    if existing is None:
+        return False
+
+    full_new = (vault / new_path).resolve()
+    new_stem = full_new.stem
+    if full_new.exists():
+        post = fm.loads(full_new.read_text(encoding="utf-8"))
+        title = post.metadata.get("title") or new_stem
+    else:
+        title = new_stem
+
+    db.execute(
+        "UPDATE notes SET path = ?, title = ? WHERE path = ?",
+        (new_path, title, old_path),
+    )
+    db.execute("UPDATE tasks SET path = ? WHERE path = ?", (new_path, old_path))
+    db.commit()
+    return True
+
+
 # ── FTS Search ────────────────────────────────────────────────────────────────
 
 

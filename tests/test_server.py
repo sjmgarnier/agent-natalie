@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import natalie.server as srv
+from natalie.features import memory as mem
 
 # ---------------------------------------------------------------------------
 # main() — vault-not-found path
@@ -89,6 +90,262 @@ def test_note_write_indexes_note_in_db(vault: Path, db, config, monkeypatch: pyt
     srv.note_write("indexed.md", "# Indexed\n\nShould be in DB")
     row = db.execute("SELECT title FROM notes WHERE path = 'indexed.md'").fetchone()
     assert row is not None
+
+
+def test_note_write_normalizes_path_qualified_wikilink(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    srv.note_write("Projects/Alpha/Meeting Notes.md", "# Meeting Notes")
+    srv.note_write("Journal.md", "See [[Projects/Alpha/Meeting Notes]] for details.")
+    content = (vault / "Journal.md").read_text(encoding="utf-8")
+    assert content == "See [[Meeting Notes]] for details."
+
+
+def test_note_write_leaves_bare_wikilink_unchanged(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    srv.note_write("Journal.md", "See [[Meeting Notes]] for details.")
+    content = (vault / "Journal.md").read_text(encoding="utf-8")
+    assert content == "See [[Meeting Notes]] for details."
+
+
+def test_note_write_leaves_code_block_wikilink_untouched(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    body = "```\n[[Projects/Alpha/Example]]\n```"
+    srv.note_write("Journal.md", body)
+    assert (vault / "Journal.md").read_text(encoding="utf-8") == body
+
+
+def test_note_write_retains_disambiguating_path_on_collision(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    srv.note_write("Projects/Alpha/Meeting Notes.md", "a")
+    srv.note_write("Projects/Beta/Meeting Notes.md", "b")
+    srv.note_write("Journal.md", "[[Projects/Alpha/Meeting Notes]]")
+    content = (vault / "Journal.md").read_text(encoding="utf-8")
+    assert content == "[[Alpha/Meeting Notes]]"
+
+
+# ---------------------------------------------------------------------------
+# note_move
+# ---------------------------------------------------------------------------
+
+
+def _set_vault(monkeypatch: pytest.MonkeyPatch, vault: Path, config) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+
+
+def test_note_move_relocates_file_and_reports_paths(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Projects/Alpha/Old.md", "# Old")
+    result = srv.note_move("Projects/Alpha/Old.md", "Projects/Beta/New.md")
+    assert result["moved"] is True
+    assert result["from_path"] == "Projects/Alpha/Old.md"
+    assert result["to_path"] == "Projects/Beta/New.md"
+    assert not (vault / "Projects/Alpha/Old.md").exists()
+    assert (vault / "Projects/Beta/New.md").read_text(encoding="utf-8") == "# Old"
+
+
+def test_note_move_rejects_empty_paths(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_vault(monkeypatch, vault, config)
+    with pytest.raises(ValueError, match="path"):
+        srv.note_move("", "New.md")
+    with pytest.raises(ValueError, match="path"):
+        srv.note_move("Old.md", "")
+
+
+def test_note_move_rejects_out_of_vault_source(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_vault(monkeypatch, vault, config)
+    with pytest.raises(ValueError, match="escapes"):
+        srv.note_move("../outside.md", "New.md")
+
+
+def test_note_move_rejects_out_of_vault_destination(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old.md", "content")
+    with pytest.raises(ValueError, match="escapes"):
+        srv.note_move("Old.md", "../outside.md")
+
+
+def test_note_move_rejects_non_md_source(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_vault(monkeypatch, vault, config)
+    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
+        srv.note_move("data.json", "New.md")
+
+
+def test_note_move_rejects_non_md_destination(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old.md", "content")
+    with pytest.raises(ValueError, match=r"Only \.md files are accepted"):
+        srv.note_move("Old.md", "data.json")
+
+
+def test_note_move_rejects_missing_source(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_vault(monkeypatch, vault, config)
+    with pytest.raises(ValueError, match="not found"):
+        srv.note_move("missing.md", "New.md")
+
+
+def test_note_move_rejects_existing_destination(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old.md", "old content")
+    srv.note_write("New.md", "existing content")
+    with pytest.raises(ValueError, match="already exists"):
+        srv.note_move("Old.md", "New.md")
+    assert (vault / "Old.md").exists()
+    assert (vault / "New.md").read_text(encoding="utf-8") == "existing content"
+
+
+def test_note_move_preserves_note_id_task_and_embedding(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import patch
+
+    from tests.test_memory import _FakeEmbedding
+
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old.md", "- [ ] Do the thing\n")
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        mem.embed_notes(db)
+    old_id = db.execute("SELECT id FROM notes WHERE path = 'Old.md'").fetchone()["id"]
+
+    srv.note_move("Old.md", "New.md")
+
+    new_row = db.execute("SELECT id, title FROM notes WHERE path = 'New.md'").fetchone()
+    assert new_row["id"] == old_id
+    assert new_row["title"] == "New"
+    assert db.execute("SELECT * FROM embeddings WHERE note_id = ?", (old_id,)).fetchone() is not None
+    assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'Old.md'").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'New.md'").fetchone()[0] == 1
+
+
+def test_note_move_repairs_bare_link_broken_by_rename(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old Name.md", "# Old Name")
+    srv.note_write("Journal.md", "See [[Old Name]] for details.")
+
+    result = srv.note_move("Old Name.md", "New Name.md")
+
+    assert result["links_updated_in"] == ["Journal.md"]
+    content = (vault / "Journal.md").read_text(encoding="utf-8")
+    assert content == "See [[New Name]] for details."
+
+
+def test_note_move_repairs_legacy_path_qualified_link(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("old/folder/Note.md", "# Note")
+    # Bypass note_write's own normalization to simulate a pre-existing legacy link.
+    (vault / "Journal.md").write_text("[[old/folder/Note]]", encoding="utf-8")
+    mem.index_note(db, vault, vault / "Journal.md")
+
+    result = srv.note_move("old/folder/Note.md", "Projects/Alpha/Note.md")
+
+    assert result["links_updated_in"] == ["Journal.md"]
+    content = (vault / "Journal.md").read_text(encoding="utf-8")
+    assert content == "[[Note]]"
+
+
+def test_note_move_leaves_unrelated_links_untouched(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old Name.md", "# Old Name")
+    srv.note_write("Journal.md", "See [[Unrelated Note]] and [[Another One]].")
+
+    result = srv.note_move("Old Name.md", "New Name.md")
+
+    assert result["links_updated_in"] == []
+    content = (vault / "Journal.md").read_text(encoding="utf-8")
+    assert content == "See [[Unrelated Note]] and [[Another One]]."
+
+
+def test_note_move_excludes_self_from_backlink_candidates(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A note that self-references its own old name must not be treated as its
+    own backlink candidate — that would re-write+re-index it a second time
+    inside the same note_move call, destroying the embedding relocate_note
+    just preserved. Self-links are out of scope ("other notes" per spec)."""
+    from unittest.mock import patch
+
+    from tests.test_memory import _FakeEmbedding
+
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old Name.md", "See also [[Old Name]] elsewhere.")
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        mem.embed_notes(db)
+    old_id = db.execute("SELECT id FROM notes WHERE path = 'Old Name.md'").fetchone()["id"]
+
+    result = srv.note_move("Old Name.md", "New Name.md")
+
+    assert result["links_updated_in"] == []
+    assert db.execute("SELECT * FROM embeddings WHERE note_id = ?", (old_id,)).fetchone() is not None
+    assert (vault / "New Name.md").read_text(encoding="utf-8") == "See also [[Old Name]] elsewhere."
+
+
+def test_note_move_folder_only_move_preserves_backlinking_notes_embeddings(
+    vault: Path, db, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A folder-only move (basename unchanged, no collision) re-resolves a
+    bare link to identical text — the backlinking note must not be rewritten
+    or reindexed, since that would needlessly invalidate its embedding."""
+    from unittest.mock import patch
+
+    from tests.test_memory import _FakeEmbedding
+
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Projects/Alpha/Note.md", "# Note")
+    srv.note_write("Journal.md", "See [[Note]] for details.")
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        mem.embed_notes(db)
+    journal_id = db.execute("SELECT id FROM notes WHERE path = 'Journal.md'").fetchone()["id"]
+
+    result = srv.note_move("Projects/Alpha/Note.md", "Projects/Beta/Note.md")
+
+    assert result["links_updated_in"] == []
+    assert db.execute("SELECT * FROM embeddings WHERE note_id = ?", (journal_id,)).fetchone() is not None
+    assert (vault / "Journal.md").read_text(encoding="utf-8") == "See [[Note]] for details."
+
+
+def test_note_move_no_referencing_notes_leaves_vault_unchanged(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_vault(monkeypatch, vault, config)
+    srv.note_write("Old Name.md", "# Old Name")
+    srv.note_write("Unrelated.md", "Nothing to see here.")
+
+    result = srv.note_move("Old Name.md", "New Name.md")
+
+    assert result["links_updated_in"] == []
+    assert (vault / "Unrelated.md").read_text(encoding="utf-8") == "Nothing to see here."
 
 
 # ---------------------------------------------------------------------------

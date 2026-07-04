@@ -9,6 +9,7 @@ from watchdog.events import (
     FileMovedEvent,
 )
 
+from natalie.features.memory import embed_notes, index_note
 from natalie.features.tasks import index_tasks
 from natalie.features.watcher import _VaultEventHandler
 from tests.helpers import write_note
@@ -47,11 +48,68 @@ def test_handler_removes_deleted_md(vault, db, handler):
 
 def test_handler_handles_moved_md(vault, db, handler):
     write_note(vault, "old_name.md", "- [ ] Moved task\n")
+    index_note(db, vault, vault / "old_name.md")
     index_tasks(db, vault, vault / "old_name.md")
     (vault / "old_name.md").rename(vault / "new_name.md")
     handler.on_moved(FileMovedEvent(str(vault / "old_name.md"), str(vault / "new_name.md")))
     assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'old_name.md'").fetchone()[0] == 0
     assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'new_name.md'").fetchone()[0] == 1
+
+
+def test_handler_moved_md_preserves_embedding_and_note_id(vault, db, handler):
+    from unittest.mock import patch
+
+    from tests.test_memory import _FakeEmbedding
+
+    write_note(vault, "old_name.md", "Some content.")
+    index_note(db, vault, vault / "old_name.md")
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        embed_notes(db)
+    old_row = db.execute("SELECT id FROM notes WHERE path = 'old_name.md'").fetchone()
+    old_id = old_row["id"]
+
+    (vault / "old_name.md").rename(vault / "new_name.md")
+    handler.on_moved(FileMovedEvent(str(vault / "old_name.md"), str(vault / "new_name.md")))
+
+    new_row = db.execute("SELECT id FROM notes WHERE path = 'new_name.md'").fetchone()
+    assert new_row["id"] == old_id
+    assert db.execute("SELECT COUNT(*) FROM notes WHERE path = 'old_name.md'").fetchone()[0] == 0
+    assert db.execute("SELECT * FROM embeddings WHERE note_id = ?", (old_id,)).fetchone() is not None
+
+
+def test_handler_moved_md_recomputes_filename_derived_title(vault, db, handler):
+    write_note(vault, "old_name.md", "No frontmatter title.")
+    index_note(db, vault, vault / "old_name.md")
+    (vault / "old_name.md").rename(vault / "new_name.md")
+    handler.on_moved(FileMovedEvent(str(vault / "old_name.md"), str(vault / "new_name.md")))
+    row = db.execute("SELECT title FROM notes WHERE path = 'new_name.md'").fetchone()
+    assert row["title"] == "new_name"
+
+
+def test_handler_moved_md_converges_with_prior_relocate(vault, db, handler):
+    """A watcher event for a rename that note_move already applied must be a no-op,
+    not a delete+reindex that would destroy the preserved embedding/note_id."""
+    from unittest.mock import patch
+
+    from natalie.features.memory import relocate_note
+    from tests.test_memory import _FakeEmbedding
+
+    write_note(vault, "old_name.md", "Some content.")
+    index_note(db, vault, vault / "old_name.md")
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        embed_notes(db)
+    old_id = db.execute("SELECT id FROM notes WHERE path = 'old_name.md'").fetchone()["id"]
+
+    (vault / "old_name.md").rename(vault / "new_name.md")
+    # Simulate note_move having already relocated the row before the watcher's
+    # own FileMovedEvent for the same rename is processed.
+    relocate_note(db, vault, "old_name.md", "new_name.md")
+
+    handler.on_moved(FileMovedEvent(str(vault / "old_name.md"), str(vault / "new_name.md")))
+
+    row = db.execute("SELECT id FROM notes WHERE path = 'new_name.md'").fetchone()
+    assert row["id"] == old_id
+    assert db.execute("SELECT * FROM embeddings WHERE note_id = ?", (old_id,)).fetchone() is not None
 
 
 def test_handler_ignores_non_md_files(vault, db, handler):

@@ -17,6 +17,7 @@ from natalie.features.memory import (
     embed_notes,
     index_note,
     keyword_search,
+    relocate_note,
     remove_note,
     semantic_search,
     update_note_frontmatter,
@@ -91,6 +92,57 @@ def test_remove_note_deletes_row(vault, db):
     note = write_note(vault, "gone.md", "Content")
     index_note(db, vault, note)
     remove_note(db, "gone.md")
+    assert get_notes(db) == []
+
+
+def test_relocate_note_updates_path_and_tasks(vault, db):
+    note = write_note(vault, "old.md", "- [ ] A task\n")
+    index_note(db, vault, note)
+    from natalie.features.tasks import index_tasks
+
+    index_tasks(db, vault, note)
+    note.rename(vault / "new.md")
+
+    assert relocate_note(db, vault, "old.md", "new.md") is True
+    assert get_notes(db)[0]["path"] == "new.md"
+    assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'old.md'").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM tasks WHERE path = 'new.md'").fetchone()[0] == 1
+
+
+def test_relocate_note_preserves_note_id_and_embedding(vault, db):
+    note = write_note(vault, "old.md", "Some content.")
+    index_note(db, vault, note)
+    with patch("natalie.features.memory.TextEmbedding", _FakeEmbedding):
+        embed_notes(db)
+    old_id = get_notes(db)[0]["id"]
+
+    note.rename(vault / "new.md")
+    relocate_note(db, vault, "old.md", "new.md")
+
+    row = get_notes(db)[0]
+    assert row["id"] == old_id
+    assert db.execute("SELECT * FROM embeddings WHERE note_id = ?", (old_id,)).fetchone() is not None
+
+
+def test_relocate_note_recomputes_filename_derived_title(vault, db):
+    note = write_note(vault, "old.md", "No frontmatter title.")
+    index_note(db, vault, note)
+    note.rename(vault / "new.md")
+    relocate_note(db, vault, "old.md", "new.md")
+    assert get_notes(db)[0]["title"] == "new"
+
+
+def test_relocate_note_preserves_frontmatter_title(vault, db):
+    note = write_note(vault, "old.md", "---\ntitle: Custom Title\n---\nBody.")
+    index_note(db, vault, note)
+    note.rename(vault / "new.md")
+    relocate_note(db, vault, "old.md", "new.md")
+    assert get_notes(db)[0]["title"] == "Custom Title"
+
+
+def test_relocate_note_is_idempotent_noop_without_existing_row(vault, db):
+    """No row at old_path (e.g. a second, racing call) must be a harmless no-op."""
+    assert relocate_note(db, vault, "never-indexed.md", "new.md") is False
     assert get_notes(db) == []
 
 

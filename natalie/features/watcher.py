@@ -10,7 +10,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from ..db import get_db
-from .memory import index_note, remove_note
+from .memory import index_note, relocate_note, remove_note
 from .tasks import index_tasks
 
 _log = logging.getLogger(__name__)
@@ -76,13 +76,32 @@ class _VaultEventHandler(FileSystemEventHandler):
             except Exception:
                 _log.exception("watcher: failed to remove deleted file %s", event.src_path)
 
+    def _relocate_file(self, src_path: str, dest_path: str) -> None:
+        old_rel = Path(src_path).resolve().relative_to(self._vault).as_posix()
+        new_rel = Path(dest_path).resolve().relative_to(self._vault).as_posix()
+        db = self._db()
+        if relocate_note(db, self._vault, old_rel, new_rel):
+            return
+        # No row at old_rel: either a never-indexed file (index it fresh) or a
+        # racing note_move call already relocated it (nothing further to do).
+        already_relocated = db.execute("SELECT 1 FROM notes WHERE path = ?", (new_rel,)).fetchone()
+        if already_relocated is None:
+            self._index_file(dest_path)
+
     def on_moved(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
         try:
-            if self._is_vault_md(str(event.src_path)):
+            src_is_md = self._is_vault_md(str(event.src_path))
+            dest_is_md = self._is_vault_md(str(event.dest_path))
+            if src_is_md and dest_is_md:
+                # Same event fires for note_move-initiated renames as for external
+                # ones (Finder/Obsidian); relocate_note is idempotent so this
+                # converges harmlessly regardless of which caller runs first.
+                self._relocate_file(str(event.src_path), str(event.dest_path))
+            elif src_is_md:
                 self._remove_file(str(event.src_path))
-            if self._is_vault_md(str(event.dest_path)):
+            elif dest_is_md:
                 self._index_file(str(event.dest_path))
         except Exception:
             _log.exception("watcher: failed to handle move %s -> %s", event.src_path, event.dest_path)

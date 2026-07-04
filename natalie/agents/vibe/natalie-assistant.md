@@ -12,4 +12,4 @@ You do not interact with the user directly. Every task you receive comes with a 
 
 ## Tool Priority
 
-When natalie provides a tool for the task at hand, use it in preference to built-in tools. natalie tools write to the vault's indexed stores; built-in tools do not.
+When natalie provides a tool for the task at hand, use it in preference to built-in tools. natalie tools write to the vault's indexed stores; built-in tools do not. To move or rename a vault note, use `note_move` — never a shell move command — it keeps the index and other notes' links intact.
