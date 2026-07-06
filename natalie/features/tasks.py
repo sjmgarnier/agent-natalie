@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from ..utils import safe_join
 
-_ANY_RE: re.Pattern[str] = re.compile(r"^([ \t]*- \[[ xX]\] )(.+)$", re.MULTILINE)
+_ANY_RE: re.Pattern[str] = re.compile(r"^([ \t]*- \[[ xX-]\] )(.+)$", re.MULTILINE)
 _TAG_RE: re.Pattern[str] = re.compile(r"#[a-zA-Z][a-zA-Z0-9\-_/]*")
 
 _PRIORITY_EMOJIS: dict[str, str] = {
@@ -27,10 +27,19 @@ _PRIORITY_RE: re.Pattern[str] = re.compile(r"[🔺⏫🔼🔽⏬]️?")
 _DUE_DATE_RE: re.Pattern[str] = re.compile(r"📅\s*(\d{4}-\d{2}-\d{2})")
 _RECURRENCE_RE: re.Pattern[str] = re.compile(r"🔁\s*([^📅⏳🛫✅🔺⏫🔼🔽⏬]+)")
 
-# Matches the start of Tasks plugin metadata (used in complete_task match pattern)
-_META_EMOJI: str = r"[📅🔺⏫🔼🔽⏬🔁✅⏳🛫]"
+# Matches the start of Tasks plugin metadata (used in complete_task/cancel_task match pattern)
+_META_EMOJI: str = r"[📅🔺⏫🔼🔽⏬🔁✅⏳🛫❌]"
 
 _OPEN_TASK_RE: re.Pattern[str] = re.compile(r"^(\s*)- \[ \] (.+)$")
+
+
+def _status_from_marker(marker: str) -> str:
+    """Derive open/done/cancelled status from a matched checkbox marker."""
+    if "[x]" in marker.lower():
+        return "done"
+    if "[-]" in marker:
+        return "cancelled"
+    return "open"
 
 
 def _split_tags(text: str) -> tuple[list[str], str, list[str]]:
@@ -143,9 +152,10 @@ def discover_tasks(vault: Path, today: datetime.date | None = None) -> list[dict
         for m in _ANY_RE.finditer(text):
             marker, raw_text = m.group(1), m.group(2).strip()
             parsed = _parse_task_text(raw_text)
+            status = _status_from_marker(marker)
             due_date = parsed["due_date"]
             overdue = False
-            if due_date:
+            if status == "open" and due_date:
                 try:
                     overdue = datetime.date.fromisoformat(due_date) < today
                 except ValueError:
@@ -154,7 +164,7 @@ def discover_tasks(vault: Path, today: datetime.date | None = None) -> list[dict
                 {
                     "text": parsed["text"],
                     "tags": parsed["tags"],
-                    "done": "[x]" in marker.lower(),
+                    "status": status,
                     "path": rel,
                     "line": text[: m.start()].count("\n") + 1,
                     "due_date": due_date,
@@ -239,6 +249,38 @@ def complete_task(
         return {"completed": False, "path": rel_path, "task": task_text, "completed_date": None}
     full.write_text(new_content, encoding="utf-8")
     return {"completed": True, "path": rel_path, "task": task_text, "completed_date": completed_date}
+
+
+def cancel_task(
+    vault: Path,
+    rel_path: str,
+    task_text: str,
+    today: datetime.date | None = None,
+) -> dict[str, Any]:
+    """Mark a specific open task as cancelled. Returns dict with cancelled and cancelled_date."""
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
+    if today is None:
+        today = datetime.date.today()
+    full = safe_join(vault, rel_path)
+    if not full.exists():
+        return {"cancelled": False, "path": rel_path, "task": task_text, "cancelled_date": None}
+    content = full.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"^(\s*)- \[ \] (" + re.escape(task_text) + r")(\s*" + _META_EMOJI + r".*|\s*)$",
+        re.MULTILINE,
+    )
+    cancelled_date = today.isoformat()
+
+    def _replace(m: re.Match[str]) -> str:
+        trailing = m.group(3).rstrip()
+        return f"{m.group(1)}- [-] {m.group(2)}{trailing} ❌ {cancelled_date}"
+
+    new_content, count = pattern.subn(_replace, content)
+    if count == 0:
+        return {"cancelled": False, "path": rel_path, "task": task_text, "cancelled_date": None}
+    full.write_text(new_content, encoding="utf-8")
+    return {"cancelled": True, "path": rel_path, "task": task_text, "cancelled_date": cancelled_date}
 
 
 def update_task(
@@ -351,17 +393,17 @@ def index_tasks(db: sqlite3.Connection, vault: Path, note_path: Path, *, commit:
     for m in _ANY_RE.finditer(text):
         marker, raw_text = m.group(1), m.group(2).strip()
         parsed = _parse_task_text(raw_text)
-        done = 1 if "[x]" in marker.lower() else 0
+        status = _status_from_marker(marker)
         line = text[: m.start()].count("\n") + 1
         tags_str = " ".join(parsed["tags"]) if parsed["tags"] else None
         db.execute(
-            "INSERT OR REPLACE INTO tasks (path, line, text, done, due_date, priority, recurrence, tags) "
+            "INSERT OR REPLACE INTO tasks (path, line, text, status, due_date, priority, recurrence, tags) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 rel,
                 line,
                 parsed["text"],
-                done,
+                status,
                 parsed["due_date"],
                 parsed["priority"],
                 parsed["recurrence"],

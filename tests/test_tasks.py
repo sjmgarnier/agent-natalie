@@ -8,6 +8,7 @@ from natalie.features.tasks import (
     PriorityLiteral,
     _parse_task_text,
     _split_tags,
+    cancel_task,
     capture_task,
     complete_task,
     discover_tasks,
@@ -25,7 +26,7 @@ def test_discover_tasks_finds_open_checkboxes(vault):
         "# Work\n\n- [ ] Write report\n- [x] Done thing\n- [ ] Review PR\n",
     )
     tasks = discover_tasks(vault)
-    open_tasks = [t for t in tasks if not t["done"]]
+    open_tasks = [t for t in tasks if t["status"] == "open"]
     assert len(open_tasks) == 2
     texts = [t["text"] for t in open_tasks]
     assert "Write report" in texts
@@ -36,7 +37,20 @@ def test_discover_tasks_marks_done_items(vault):
     write_note(vault, "tasks.md", "- [x] Completed task\n")
     tasks = discover_tasks(vault)
     assert len(tasks) == 1
-    assert tasks[0]["done"] is True
+    assert tasks[0]["status"] == "done"
+
+
+def test_discover_tasks_marks_cancelled_items(vault):
+    write_note(vault, "tasks.md", "- [-] Abandoned task ❌ 2026-01-01\n")
+    tasks = discover_tasks(vault)
+    assert len(tasks) == 1
+    assert tasks[0]["status"] == "cancelled"
+
+
+def test_discover_tasks_cancelled_overdue_task_not_flagged(vault):
+    write_note(vault, "tasks.md", "- [-] Abandoned task 📅 2020-01-01 ❌ 2026-01-01\n")
+    tasks = discover_tasks(vault)
+    assert tasks[0]["overdue"] is False
 
 
 def test_discover_tasks_returns_source_path(vault):
@@ -74,6 +88,64 @@ def test_complete_task_returns_false_if_not_found(vault):
     assert result["completed_date"] is None
 
 
+def test_cancel_task_marks_checkbox_cancelled(vault):
+    note = write_note(vault, "todo.md", "- [ ] Abandon this\n")
+    result = cancel_task(vault, "todo.md", "Abandon this")
+    assert result["cancelled"] is True
+    assert result["cancelled_date"] is not None
+    content = note.read_text()
+    assert "- [-] Abandon this" in content
+    assert "❌" in content
+
+
+def test_cancel_task_preserves_existing_metadata(vault):
+    note = write_note(vault, "todo.md", "- [ ] Buy milk 🔺 📅 2026-07-10\n")
+    cancel_task(vault, "todo.md", "Buy milk")
+    content = note.read_text()
+    assert "🔺" in content
+    assert "📅 2026-07-10" in content
+    assert "❌" in content
+
+
+def test_cancel_task_returns_false_if_file_missing(vault):
+    result = cancel_task(vault, "missing.md", "Some task")
+    assert result["cancelled"] is False
+    assert result["cancelled_date"] is None
+
+
+def test_cancel_task_returns_false_if_not_found(vault):
+    write_note(vault, "empty.md", "- [ ] Something else\n")
+    result = cancel_task(vault, "empty.md", "Nonexistent task")
+    assert result["cancelled"] is False
+    assert result["cancelled_date"] is None
+
+
+def test_cancel_task_does_not_match_already_done_task(vault):
+    note = write_note(vault, "todo.md", "- [x] Finished thing ✅ 2026-01-01\n")
+    result = cancel_task(vault, "todo.md", "Finished thing")
+    assert result["cancelled"] is False
+    assert "- [x] Finished thing" in note.read_text()
+
+
+def test_cancel_task_does_not_match_already_cancelled_task(vault):
+    note = write_note(vault, "todo.md", "- [-] Abandoned thing ❌ 2026-01-01\n")
+    result = cancel_task(vault, "todo.md", "Abandoned thing")
+    assert result["cancelled"] is False
+    assert "- [-] Abandoned thing" in note.read_text()
+
+
+def test_cancel_task_rejects_empty_task_text(vault):
+    write_note(vault, "tasks.md", "- [ ] Important task\n")
+    with pytest.raises(ValueError, match="task_text"):
+        cancel_task(vault, "tasks.md", "")
+
+
+def test_cancel_task_rejects_whitespace_only_task_text(vault):
+    write_note(vault, "tasks.md", "- [ ] Some task\n")
+    with pytest.raises(ValueError, match="task_text"):
+        cancel_task(vault, "tasks.md", "   ")
+
+
 def test_discover_tasks_recognises_uppercase_X(vault):
     """Obsidian allows [X] (uppercase) for completed tasks; both forms must be found."""
     write_note(
@@ -83,7 +155,7 @@ def test_discover_tasks_recognises_uppercase_X(vault):
     )
     tasks = discover_tasks(vault)
     assert len(tasks) == 3
-    done = [t for t in tasks if t["done"]]
+    done = [t for t in tasks if t["status"] == "done"]
     assert len(done) == 2
     texts = {t["text"] for t in done}
     assert "Done uppercase" in texts
@@ -497,14 +569,21 @@ def test_index_tasks_inserts_open_task(vault, db):
     assert count == 1
     row = db.execute("SELECT * FROM tasks WHERE path = 'todo.md'").fetchone()
     assert row["text"] == "Buy milk"
-    assert row["done"] == 0
+    assert row["status"] == "open"
 
 
 def test_index_tasks_inserts_done_task(vault, db):
     write_note(vault, "done.md", "- [x] Finished thing\n")
     index_tasks(db, vault, vault / "done.md")
     row = db.execute("SELECT * FROM tasks WHERE path = 'done.md'").fetchone()
-    assert row["done"] == 1
+    assert row["status"] == "done"
+
+
+def test_index_tasks_inserts_cancelled_task(vault, db):
+    write_note(vault, "cancelled.md", "- [-] Abandoned thing ❌ 2026-01-01\n")
+    index_tasks(db, vault, vault / "cancelled.md")
+    row = db.execute("SELECT * FROM tasks WHERE path = 'cancelled.md'").fetchone()
+    assert row["status"] == "cancelled"
 
 
 def test_index_tasks_parses_metadata(vault, db):

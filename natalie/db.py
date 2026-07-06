@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     path        TEXT    NOT NULL,
     line        INTEGER NOT NULL,
     text        TEXT    NOT NULL,
-    done        INTEGER NOT NULL DEFAULT 0,
+    status      TEXT    NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'done', 'cancelled')),
     due_date    TEXT,
     priority    TEXT,
     recurrence  TEXT,
@@ -142,4 +142,18 @@ def init_db(vault: Path) -> None:
             _log.exception("db migration failed: unexpected error adding tasks.tags column")
             raise
         # column already exists on existing installations
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+    if "done" in columns:
+        # existing installation predating the status column: add it, backfill from the
+        # old boolean, then drop done. tasks is a fully derived cache (index_tasks/sync_tasks
+        # delete-and-reinsert from vault markdown), so no other data needs preserving.
+        if "status" not in columns:
+            conn.execute(
+                "ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'open' "
+                "CHECK(status IN ('open', 'done', 'cancelled'))"
+            )
+        conn.execute("UPDATE tasks SET status = 'done' WHERE done = 1")
+        conn.execute("ALTER TABLE tasks DROP COLUMN done")
+        conn.commit()
     conn.close()

@@ -387,31 +387,34 @@ def onboarding_complete() -> dict[str, Any]:
 
 
 @mcp.tool()
-def task_list(done: bool = False) -> list[dict[str, Any]]:
-    """List tasks across the vault. Set done=True to include completed tasks.
+def task_list(status: Literal["open", "done", "cancelled", "all"] = "open") -> list[dict[str, Any]]:
+    """List tasks across the vault, filtered by status (default: open only).
 
-    Prefer over scanning vault files for task items.
+    Set status="done", "cancelled", or "all" to see other states. Prefer over scanning
+    vault files for task items.
     """
+    if status not in ("open", "done", "cancelled", "all"):
+        raise ValueError(f"status must be one of 'open', 'done', 'cancelled', 'all', got {status!r}")
     db = _get_db()
     today = datetime.date.today().isoformat()
-    if done:
+    overdue_case = (
+        "CASE WHEN status='open' AND due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue"
+    )
+    if status == "all":
         rows = db.execute(
-            "SELECT path, line, text, done, due_date, priority, recurrence, tags, "
-            "CASE WHEN done=0 AND due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue "
+            f"SELECT path, line, text, status, due_date, priority, recurrence, tags, {overdue_case} "  # nosec B608
             "FROM tasks ORDER BY due_date ASC NULLS LAST, path",
             (today,),
         ).fetchall()
     else:
         rows = db.execute(
-            "SELECT path, line, text, done, due_date, priority, recurrence, tags, "
-            "CASE WHEN due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END AS overdue "
-            "FROM tasks WHERE done=0 ORDER BY due_date ASC NULLS LAST, path",
-            (today,),
+            f"SELECT path, line, text, status, due_date, priority, recurrence, tags, {overdue_case} "  # nosec B608
+            "FROM tasks WHERE status=? ORDER BY due_date ASC NULLS LAST, path",
+            (today, status),
         ).fetchall()
     result = []
     for r in rows:
         t = dict(r)
-        t["done"] = bool(t["done"])
         t["overdue"] = bool(t["overdue"])
         t["tags"] = (t.get("tags") or "").split() or []
         result.append(t)
@@ -451,6 +454,24 @@ def task_complete(rel_path: str, task_text: str) -> dict[str, Any]:
         raise ValueError("task_text must not be empty")
     vault = _get_vault()
     result = tasks_mod.complete_task(vault, rel_path, task_text)
+    tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
+    return result
+
+
+@mcp.tool()
+def task_cancel(rel_path: str, task_text: str) -> dict[str, Any]:
+    """Mark a specific task as cancelled, distinct from completed.
+
+    Use this for a task that's being abandoned rather than finished (Obsidian Tasks
+    plugin's '- [-]' + cancelled-date convention). Prefer over editing the markdown
+    file directly.
+    """
+    if not rel_path.strip():
+        raise ValueError("rel_path must not be empty")
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
+    vault = _get_vault()
+    result = tasks_mod.cancel_task(vault, rel_path, task_text)
     tasks_mod.index_tasks(_get_db(), vault, safe_join(vault, rel_path))
     return result
 

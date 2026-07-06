@@ -563,6 +563,15 @@ def test_task_update_rejects_empty_rel_path(vault: Path, config, monkeypatch: py
         srv.task_update("", "My task", new_text="Updated")
 
 
+def test_task_cancel_rejects_empty_rel_path(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    monkeypatch.setattr(srv, "_config", config)
+    with pytest.raises(ValueError, match="rel_path"):
+        srv.task_cancel("", "My task")
+
+
 def test_contact_search_tool_delegates_to_contacts_mod(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_results = [
         {"path": "People/alice.md", "title": "Alice", "score": 0.9, "source": "keyword", "excerpt": "Alice"}
@@ -672,6 +681,24 @@ def test_task_complete_passes_through_dict() -> None:
     mock_fn.assert_called_once_with(Path("/vault"), "tasks.md", "File taxes")
 
 
+def test_task_cancel_passes_through_dict() -> None:
+    expected = {
+        "cancelled": True,
+        "path": "tasks.md",
+        "task": "File taxes",
+        "cancelled_date": "2026-06-04",
+    }
+    with (
+        patch("natalie.server._get_vault", return_value=Path("/vault")),
+        patch("natalie.server._get_db", return_value=MagicMock()),
+        patch("natalie.server.tasks_mod.cancel_task", return_value=expected) as mock_fn,
+        patch("natalie.server.tasks_mod.index_tasks"),
+    ):
+        result = srv.task_cancel("tasks.md", "File taxes")
+    assert result == expected
+    mock_fn.assert_called_once_with(Path("/vault"), "tasks.md", "File taxes")
+
+
 def test_task_update_passes_through_dict() -> None:
     expected = {
         "updated": True,
@@ -716,42 +743,86 @@ def _setup_server(vault, db_vault):
 def test_task_list_returns_open_tasks_from_db(vault, db):
     # Insert directly into DB — no file on disk — proves task_list uses DB not filesystem scan
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
-        ("todo.md", 1, "Buy milk", 0, None, None, None),
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Buy milk", "open", None, None, None),
     )
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
-        ("todo.md", 2, "Done thing", 1, None, None, None),
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 2, "Done thing", "done", None, None, None),
     )
     db.commit()
     _setup_server(vault, vault)
 
-    result = srv.task_list(done=False)
+    result = srv.task_list(status="open")
     assert len(result) == 1
     assert result[0]["text"] == "Buy milk"
-    assert result[0]["done"] is False
+    assert result[0]["status"] == "open"
 
 
-def test_task_list_done_true_includes_completed(vault, db):
+def test_task_list_rejects_invalid_status(vault, db):
+    _setup_server(vault, vault)
+    with pytest.raises(ValueError, match="status"):
+        srv.task_list(status="bogus")
+
+
+def test_task_list_done_status_returns_only_completed(vault, db):
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
-        ("todo.md", 1, "Open task", 0, None, None, None),
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Open task", "open", None, None, None),
     )
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
-        ("todo.md", 2, "Done task", 1, None, None, None),
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 2, "Done task", "done", None, None, None),
     )
     db.commit()
     _setup_server(vault, vault)
 
-    result = srv.task_list(done=True)
-    assert len(result) == 2
+    result = srv.task_list(status="done")
+    assert len(result) == 1
+    assert result[0]["text"] == "Done task"
+
+
+def test_task_list_cancelled_status_returns_only_cancelled(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Open task", "open", None, None, None),
+    )
+    db.execute(
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 2, "Cancelled task", "cancelled", None, None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list(status="cancelled")
+    assert len(result) == 1
+    assert result[0]["text"] == "Cancelled task"
+
+
+def test_task_list_all_status_includes_every_state(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Open task", "open", None, None, None),
+    )
+    db.execute(
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 2, "Done task", "done", None, None, None),
+    )
+    db.execute(
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 3, "Cancelled task", "cancelled", None, None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list(status="all")
+    assert len(result) == 3
 
 
 def test_task_list_overdue_flag(vault, db):
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
-        ("todo.md", 1, "Late task", 0, "2020-01-01", None, None),
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Late task", "open", "2020-01-01", None, None),
     )
     db.commit()
     _setup_server(vault, vault)
@@ -760,11 +831,23 @@ def test_task_list_overdue_flag(vault, db):
     assert result[0]["overdue"] is True
 
 
+def test_task_list_cancelled_overdue_task_not_flagged(vault, db):
+    db.execute(
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Late cancelled task", "cancelled", "2020-01-01", None, None),
+    )
+    db.commit()
+    _setup_server(vault, vault)
+
+    result = srv.task_list(status="cancelled")
+    assert result[0]["overdue"] is False
+
+
 def test_task_list_returns_tags_as_list(vault, db):
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence, tags) "
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence, tags) "
         "VALUES (?,?,?,?,?,?,?,?)",
-        ("todo.md", 1, "Buy milk", 0, None, None, None, "#task #errands"),
+        ("todo.md", 1, "Buy milk", "open", None, None, None, "#task #errands"),
     )
     db.commit()
     _setup_server(vault, vault)
@@ -775,8 +858,8 @@ def test_task_list_returns_tags_as_list(vault, db):
 
 def test_task_list_returns_empty_tags_for_untagged(vault, db):
     db.execute(
-        "INSERT INTO tasks (path, line, text, done, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
-        ("todo.md", 1, "Buy milk", 0, None, None, None),
+        "INSERT INTO tasks (path, line, text, status, due_date, priority, recurrence) VALUES (?,?,?,?,?,?,?)",
+        ("todo.md", 1, "Buy milk", "open", None, None, None),
     )
     db.commit()
     _setup_server(vault, vault)
@@ -873,6 +956,24 @@ def test_task_complete_rejects_whitespace_task_text(
     monkeypatch.setattr(srv, "_db_local", threading.local())
     with pytest.raises(ValueError, match="task_text"):
         srv.task_complete("tasks.md", "   ")
+
+
+def test_task_cancel_rejects_empty_task_text(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="task_text"):
+        srv.task_cancel("tasks.md", "")
+
+
+def test_task_cancel_rejects_whitespace_task_text(
+    vault: Path, config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(srv, "_vault", vault)
+    monkeypatch.setattr(srv, "_db_vault", vault)
+    monkeypatch.setattr(srv, "_db_local", threading.local())
+    with pytest.raises(ValueError, match="task_text"):
+        srv.task_cancel("tasks.md", "   ")
 
 
 def test_task_update_rejects_empty_task_text(vault: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:

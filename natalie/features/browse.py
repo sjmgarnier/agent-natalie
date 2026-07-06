@@ -26,7 +26,7 @@ def list_notes(
 def vault_stats(db: sqlite3.Connection) -> dict[str, Any]:
     vault_notes: int = db.execute("SELECT COUNT(*) FROM notes WHERE machine_mac IS NULL").fetchone()[0]
     memory_entries: int = db.execute("SELECT COUNT(*) FROM notes WHERE machine_mac IS NOT NULL").fetchone()[0]
-    open_tasks: int = db.execute("SELECT COUNT(*) FROM tasks WHERE done=0").fetchone()[0]
+    open_tasks: int = db.execute("SELECT COUNT(*) FROM tasks WHERE status='open'").fetchone()[0]
     embedded: int = db.execute(
         "SELECT COUNT(*) FROM embeddings WHERE note_id IN (SELECT id FROM notes WHERE machine_mac IS NULL)"
     ).fetchone()[0]

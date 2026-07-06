@@ -78,6 +78,32 @@ def test_init_db_reraises_unexpected_operational_error_on_migration(tmp_path, mo
         init_db(tmp_path)
 
 
+def test_init_db_migrates_done_column_to_status(tmp_path):
+    """Existing installs with the old boolean `done` column get migrated to `status`."""
+    natalie_dir = tmp_path / ".natalie"
+    natalie_dir.mkdir()
+    conn = sqlite3.connect(natalie_dir / "natalie.db")
+    conn.execute(
+        "CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, "
+        "line INTEGER NOT NULL, text TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, "
+        "due_date TEXT, priority TEXT, recurrence TEXT, tags TEXT)"
+    )
+    insert_sql = "INSERT INTO tasks (path, line, text, done) VALUES (?, ?, ?, ?)"
+    conn.execute(insert_sql, ("todo.md", 1, "Old open", 0))
+    conn.execute(insert_sql, ("todo.md", 2, "Old done", 1))
+    conn.commit()
+    conn.close()
+
+    init_db(tmp_path)
+
+    conn = get_db(tmp_path)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+    assert "done" not in cols
+    assert "status" in cols
+    rows = {r["text"]: r["status"] for r in conn.execute("SELECT text, status FROM tasks").fetchall()}
+    assert rows == {"Old open": "open", "Old done": "done"}
+
+
 # ---------------------------------------------------------------------------
 # Thread safety — C7 + C3
 # ---------------------------------------------------------------------------
@@ -101,7 +127,7 @@ def test_init_db_creates_tasks_table(vault):
 def test_tasks_table_has_expected_columns(vault):
     conn = get_db(vault)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
-    assert cols == {"id", "path", "line", "text", "done", "due_date", "priority", "recurrence", "tags"}
+    assert cols == {"id", "path", "line", "text", "status", "due_date", "priority", "recurrence", "tags"}
 
 
 def test_tasks_path_index_exists(vault):

@@ -197,9 +197,10 @@ natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
 | `note_write` | Write or update a vault note |
 | `note_move` | Relocate or rename a vault note, keeping the index and other notes' links intact |
 | `note_frontmatter_update` | Merge fields into a note's frontmatter (tags, status, etc.) without touching the body |
-| `task_list` | List open (or all) tasks across the vault |
+| `task_list` | List tasks across the vault, filtered by status (open/done/cancelled/all) |
 | `task_capture` | Add a task to a note |
 | `task_complete` | Mark a task done |
+| `task_cancel` | Mark a task cancelled, distinct from done |
 | `task_update` | Edit an existing task in place (text, due date, priority, recurrence) |
 | `document_file` | Register a vault file in the document index with a semantic description |
 | `document_list` | List or semantically search filed documents |
