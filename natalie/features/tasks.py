@@ -27,9 +27,6 @@ _PRIORITY_RE: re.Pattern[str] = re.compile(r"[🔺⏫🔼🔽⏬]️?")
 _DUE_DATE_RE: re.Pattern[str] = re.compile(r"📅\s*(\d{4}-\d{2}-\d{2})")
 _RECURRENCE_RE: re.Pattern[str] = re.compile(r"🔁\s*([^📅⏳🛫✅🔺⏫🔼🔽⏬]+)")
 
-# Matches the start of Tasks plugin metadata (used in complete_task/cancel_task match pattern)
-_META_EMOJI: str = r"[📅🔺⏫🔼🔽⏬🔁✅⏳🛫❌]"
-
 _OPEN_TASK_RE: re.Pattern[str] = re.compile(r"^(\s*)- \[ \] (.+)$")
 
 
@@ -219,6 +216,58 @@ def capture_task(
     }
 
 
+def _mark_task(
+    vault: Path,
+    rel_path: str,
+    task_text: str,
+    today: datetime.date | None,
+    *,
+    marker: str,
+    emoji: str,
+    status_key: str,
+    date_key: str,
+) -> dict[str, Any]:
+    """Find an open task by its clean text (leading tags/metadata stripped) and mark it."""
+    if not task_text.strip():
+        raise ValueError("task_text must not be empty")
+    if today is None:
+        today = datetime.date.today()
+    full = safe_join(vault, rel_path)
+    not_found = {status_key: False, "path": rel_path, "task": task_text, date_key: None}
+    if not full.exists():
+        return not_found
+
+    content = full.read_text(encoding="utf-8")
+    lines = content.splitlines(keepends=True)
+    date_str = today.isoformat()
+
+    for i, line in enumerate(lines):
+        m = _OPEN_TASK_RE.match(line.rstrip("\n\r"))
+        if m is None:
+            continue
+        parsed = _parse_task_text(m.group(2).strip())
+        if parsed["text"] != task_text:
+            continue
+
+        indent = m.group(1)
+        content_parts = parsed["leading_tags"] + ([task_text] if task_text else []) + parsed["trailing_tags"]
+        line_content = " ".join(p for p in content_parts if p)
+        metadata = _format_task_metadata(parsed["due_date"], parsed["priority"], parsed["recurrence"])
+        new_line = f"{indent}- [{marker}] {line_content}"
+        if metadata:
+            new_line += f" {metadata}"
+        new_line += f" {emoji} {date_str}"
+
+        stripped_len = len(line.rstrip("\n\r"))
+        ending = line[stripped_len:] or "\n"
+        lines[i] = new_line + ending
+
+        full.write_text("".join(lines), encoding="utf-8")
+        return {status_key: True, "path": rel_path, "task": task_text, date_key: date_str}
+
+    return not_found
+
+
 def complete_task(
     vault: Path,
     rel_path: str,
@@ -226,29 +275,16 @@ def complete_task(
     today: datetime.date | None = None,
 ) -> dict[str, Any]:
     """Mark a specific open task as done. Returns dict with completed and completed_date."""
-    if not task_text.strip():
-        raise ValueError("task_text must not be empty")
-    if today is None:
-        today = datetime.date.today()
-    full = safe_join(vault, rel_path)
-    if not full.exists():
-        return {"completed": False, "path": rel_path, "task": task_text, "completed_date": None}
-    content = full.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"^(\s*)- \[ \] (" + re.escape(task_text) + r")(\s*" + _META_EMOJI + r".*|\s*)$",
-        re.MULTILINE,
+    return _mark_task(
+        vault,
+        rel_path,
+        task_text,
+        today,
+        marker="x",
+        emoji="✅",
+        status_key="completed",
+        date_key="completed_date",
     )
-    completed_date = today.isoformat()
-
-    def _replace(m: re.Match[str]) -> str:
-        trailing = m.group(3).rstrip()
-        return f"{m.group(1)}- [x] {m.group(2)}{trailing} ✅ {completed_date}"
-
-    new_content, count = pattern.subn(_replace, content)
-    if count == 0:
-        return {"completed": False, "path": rel_path, "task": task_text, "completed_date": None}
-    full.write_text(new_content, encoding="utf-8")
-    return {"completed": True, "path": rel_path, "task": task_text, "completed_date": completed_date}
 
 
 def cancel_task(
@@ -258,29 +294,16 @@ def cancel_task(
     today: datetime.date | None = None,
 ) -> dict[str, Any]:
     """Mark a specific open task as cancelled. Returns dict with cancelled and cancelled_date."""
-    if not task_text.strip():
-        raise ValueError("task_text must not be empty")
-    if today is None:
-        today = datetime.date.today()
-    full = safe_join(vault, rel_path)
-    if not full.exists():
-        return {"cancelled": False, "path": rel_path, "task": task_text, "cancelled_date": None}
-    content = full.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"^(\s*)- \[ \] (" + re.escape(task_text) + r")(\s*" + _META_EMOJI + r".*|\s*)$",
-        re.MULTILINE,
+    return _mark_task(
+        vault,
+        rel_path,
+        task_text,
+        today,
+        marker="-",
+        emoji="❌",
+        status_key="cancelled",
+        date_key="cancelled_date",
     )
-    cancelled_date = today.isoformat()
-
-    def _replace(m: re.Match[str]) -> str:
-        trailing = m.group(3).rstrip()
-        return f"{m.group(1)}- [-] {m.group(2)}{trailing} ❌ {cancelled_date}"
-
-    new_content, count = pattern.subn(_replace, content)
-    if count == 0:
-        return {"cancelled": False, "path": rel_path, "task": task_text, "cancelled_date": None}
-    full.write_text(new_content, encoding="utf-8")
-    return {"cancelled": True, "path": rel_path, "task": task_text, "cancelled_date": cancelled_date}
 
 
 def update_task(

@@ -449,6 +449,36 @@ def test_complete_task_does_not_match_partial_title(vault):
     assert result["completed"] is False
 
 
+def test_complete_task_matches_task_with_leading_tag(vault):
+    """Regression: discover_tasks/task_list strips leading #tag from the reported
+    text, so complete_task must match on that clean text even though the raw line
+    still has the tag immediately after '- [ ] '."""
+    note = write_note(
+        vault,
+        "tasks.md",
+        "- [ ] #task Review manuscript on wasp heuristic route optimisation ⏫ 📅 2026-06-22\n",
+    )
+    today = datetime.date(2026, 7, 7)
+    result = complete_task(
+        vault, "tasks.md", "Review manuscript on wasp heuristic route optimisation", today=today
+    )
+    assert result["completed"] is True
+    content = note.read_text()
+    assert "- [x] #task Review manuscript on wasp heuristic route optimisation" in content
+    assert "⏫" in content
+    assert "📅 2026-06-22" in content
+    assert "✅ 2026-07-07" in content
+
+
+def test_cancel_task_matches_task_with_leading_and_trailing_tags(vault):
+    note = write_note(vault, "tasks.md", "- [ ] #task Buy milk #errand\n")
+    result = cancel_task(vault, "tasks.md", "Buy milk")
+    assert result["cancelled"] is True
+    content = note.read_text()
+    assert "- [-] #task Buy milk #errand" in content
+    assert "❌" in content
+
+
 # --- update_task ---
 
 
