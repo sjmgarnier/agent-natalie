@@ -58,6 +58,80 @@ def test_sync_cli_command_runs(vault, db):
     assert "1 indexed" in result.output
 
 
+def test_sync_cli_quiet_suppresses_success_output(vault, db):
+    from typer.testing import CliRunner
+
+    from natalie.cli import app
+
+    runner = CliRunner()
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+        patch("natalie.cli.init_db"),
+        patch("natalie.cli.get_db", return_value=db),
+        patch(
+            "natalie.features.sync.sync_vault",
+            return_value={"indexed": 0, "removed": 0, "embedded": 0},
+        ),
+    ):
+        mock_cfg.return_value.memory.embedding_model = DEFAULT_EMBEDDING_MODEL
+        result = runner.invoke(app, ["sync", "--quiet"])
+    assert result.exit_code == 0
+    assert result.output == ""
+
+
+def test_sync_cli_json_output_remains_vibe_compatible(vault, db):
+    import json
+
+    from typer.testing import CliRunner
+
+    from natalie.cli import app
+
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+        patch("natalie.cli.init_db"),
+        patch("natalie.cli.get_db", return_value=db),
+        patch(
+            "natalie.features.sync.sync_vault",
+            return_value={"indexed": 2, "removed": 1, "embedded": 2},
+        ),
+    ):
+        mock_cfg.return_value.memory.embedding_model = DEFAULT_EMBEDDING_MODEL
+        result = CliRunner().invoke(app, ["sync", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload == {"system_message": "Vault synced: 2 indexed, 1 removed, 2 embedded."}
+
+
+def test_sync_cli_rejects_quiet_with_json() -> None:
+    from typer.testing import CliRunner
+
+    from natalie.cli import app
+
+    result = CliRunner().invoke(app, ["sync", "--quiet", "--json"])
+    assert result.exit_code != 0
+    assert "cannot be combined" in result.output
+
+
+def test_sync_cli_quiet_preserves_failures(vault, db):
+    from typer.testing import CliRunner
+
+    from natalie.cli import app
+
+    with (
+        patch("natalie.cli.require_vault", return_value=vault),
+        patch("natalie.cli.load_config") as mock_cfg,
+        patch("natalie.cli.init_db"),
+        patch("natalie.cli.get_db", return_value=db),
+        patch("natalie.features.sync.sync_vault", side_effect=RuntimeError("sync failed")),
+    ):
+        mock_cfg.return_value.memory.embedding_model = DEFAULT_EMBEDDING_MODEL
+        result = CliRunner().invoke(app, ["sync", "--quiet"])
+    assert result.exit_code != 0
+    assert isinstance(result.exception, RuntimeError)
+
+
 def test_sync_vault_full_indexed_count_is_zero(vault, db):
     """full sync must return indexed=0 — it rebuilds from scratch, not new/changed — I2."""
     write_note(vault, "existing.md", "---\ntitle: Existing\n---\nContent.")

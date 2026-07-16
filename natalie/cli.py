@@ -11,7 +11,7 @@ import tomli_w
 import typer
 from ruamel.yaml import YAML as _YAML
 
-from .config import DEFAULT_EMBEDDING_MODEL, load_config
+from .config import DEFAULT_EMBEDDING_MODEL, LEGACY_CLIENTS, SUPPORTED_CLIENTS, load_config
 from .db import get_db, init_db
 from .generate import render_instructions
 from .vault import require_vault
@@ -52,20 +52,25 @@ def main(
 def sync(
     full: bool = typer.Option(False, "--full", help="Rebuild the entire index from scratch."),
     json_output: bool = typer.Option(False, "--json", help="Emit JSON for hook callers (Vibe-compatible)."),
+    quiet: bool = typer.Option(False, "--quiet", help="Suppress successful output (for lifecycle hooks)."),
 ) -> None:
     """Sync the vault index (incremental by default)."""
+    if quiet and json_output:
+        raise typer.BadParameter("--quiet cannot be combined with --json")
     vault = require_vault()
     config = load_config(vault)
     init_db(vault)
     db = get_db(vault)
     from .features.sync import sync_vault
 
-    if full and not json_output:
+    if full and not json_output and not quiet:
         typer.echo("Building full index... (first run downloads ~130 MB model; a progress bar will appear)")
     try:
         result = sync_vault(db, vault, full=full, model_name=config.memory.embedding_model)
     finally:
         db.close()
+    if quiet:
+        return
     if json_output:
         if full:
             msg = f"Vault rebuilt: {result['embedded']} embedded, {result['removed']} removed."
@@ -226,6 +231,308 @@ def _merge_yaml(path: Path, update: dict[str, Any]) -> None:
         yaml.dump(existing, f)
 
 
+def _normalize_clients(values: list[str]) -> tuple[str, ...]:
+    """Validate client names and return them in stable supported-client order."""
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise typer.BadParameter("clients.enabled must be an array of client names")
+    normalized = [value.strip().lower() for value in values]
+    if "all" in normalized:
+        if len(normalized) != 1:
+            raise typer.BadParameter("--client all cannot be combined with named clients")
+        return SUPPORTED_CLIENTS
+    invalid = sorted(set(normalized) - set(SUPPORTED_CLIENTS))
+    if invalid:
+        raise typer.BadParameter(
+            f"unknown client(s): {', '.join(invalid)}; choose from {', '.join(SUPPORTED_CLIENTS)} or all"
+        )
+    if not normalized:
+        raise typer.BadParameter("at least one --client value is required")
+    selected = set(normalized)
+    return tuple(client for client in SUPPORTED_CLIENTS if client in selected)
+
+
+def _resolve_clients(config_path: Path, requested: list[str] | None) -> tuple[str, ...]:
+    """Resolve and persist the exact enabled-client set for a vault.
+
+    Skips the write when the resolved set already matches what's stored so
+    routine reruns (e.g. every install.sh upgrade) don't round-trip the file
+    through tomllib/tomli_w and silently drop the user's comments/formatting.
+    """
+    with open(config_path, "rb") as f:
+        data: dict[str, Any] = dict(tomllib.load(f))
+    stored = data.get("clients", {}).get("enabled")
+    if requested:
+        selected = _normalize_clients(requested)
+    else:
+        selected = _normalize_clients(stored) if stored is not None else LEGACY_CLIENTS
+    if stored == list(selected):
+        return selected
+    data.setdefault("clients", {})["enabled"] = list(selected)
+    config_path.write_bytes(tomli_w.dumps(data).encode())
+    return selected
+
+
+def _write_codex_config(path: Path, server_bin: str, vault: Path) -> None:
+    """Replace Natalie's managed MCP table while preserving all other Codex config."""
+    if path.exists():
+        with open(path, "rb") as f:
+            existing: dict[str, Any] = dict(tomllib.load(f))
+    else:
+        existing = {}
+    existing.setdefault("mcp_servers", {})["natalie"] = {
+        "command": server_bin,
+        "args": [],
+        "cwd": str(vault),
+        "enabled": True,
+    }
+    path.write_bytes(tomli_w.dumps(existing).encode())
+
+
+def _write_codex_hook(path: Path, natalie_bin: str) -> None:
+    """Upsert one Codex Stop hook for Natalie while preserving unrelated hooks."""
+    if path.exists():
+        existing: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        existing = {}
+    stop_hooks: list[Any] = existing.setdefault("hooks", {}).setdefault("Stop", [])
+    managed = {
+        "hooks": [
+            {
+                "type": "command",
+                "command": f"{natalie_bin} sync --quiet",
+                "timeout": 300,
+                "statusMessage": "Syncing Natalie vault",
+            }
+        ]
+    }
+    managed_idx = next(
+        (
+            i
+            for i, entry in enumerate(stop_hooks)
+            if isinstance(entry, dict)
+            and any(
+                isinstance(hook, dict)
+                and "natalie" in hook.get("command", "")
+                and "sync" in hook.get("command", "")
+                for hook in entry.get("hooks", [])
+            )
+        ),
+        None,
+    )
+    if managed_idx is None:
+        stop_hooks.append(managed)
+    else:
+        stop_hooks[managed_idx] = managed
+    path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+
+def _setup_claude(vault: Path, server_bin: str, natalie_bin: str) -> None:
+    (vault / ".claude").mkdir(parents=True, exist_ok=True)
+    _merge_json(
+        vault / ".mcp.json",
+        {"mcpServers": {"natalie": {"command": server_bin, "args": []}}},
+    )
+
+    settings_path = vault / ".claude" / "settings.json"
+    if settings_path.exists():
+        existing_settings: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
+    else:
+        existing_settings = {}
+    natalie_hook_entry: dict[str, Any] = {
+        "matcher": "*",
+        "hooks": [{"type": "command", "command": f"{natalie_bin} sync"}],
+    }
+    post_tool_use: list[Any] = existing_settings.setdefault("hooks", {}).setdefault("PostToolUse", [])
+    natalie_idx = next(
+        (
+            i
+            for i, entry in enumerate(post_tool_use)
+            if isinstance(entry, dict)
+            and any(
+                isinstance(hook, dict) and "natalie" in hook.get("command", "")
+                for hook in entry.get("hooks", [])
+            )
+        ),
+        None,
+    )
+    if natalie_idx is None:
+        post_tool_use.append(natalie_hook_entry)
+    else:
+        post_tool_use[natalie_idx] = natalie_hook_entry
+    settings_path.write_text(json.dumps(existing_settings, indent=2), encoding="utf-8")
+
+    claude_agents_dir = vault / ".claude" / "agents"
+    claude_agents_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "claude" / "natalie-assistant.md",
+        claude_agents_dir / "natalie-assistant.md",
+    )
+
+
+def _setup_opencode(vault: Path, server_bin: str, natalie_bin: str) -> None:
+    (vault / ".opencode").mkdir(parents=True, exist_ok=True)
+    _merge_json(
+        vault / "opencode.json",
+        {
+            "$schema": "https://opencode.ai/config.json",
+            "mcp": {
+                "natalie": {"type": "local", "command": [server_bin], "enabled": True},
+            },
+        },
+    )
+    agent_config = json.loads(
+        (Path(__file__).parent / "agents" / "opencode" / "natalie-assistant.json").read_text(encoding="utf-8")
+    )
+    _merge_json(vault / "opencode.json", agent_config)
+    _merge_json(
+        vault / ".opencode" / "hooks.json",
+        {"tool.execute.after": {"command": f"{natalie_bin} sync"}},
+    )
+
+
+def _setup_vibe(vault: Path, server_bin: str, natalie_bin: str) -> None:
+    (vault / ".vibe" / "agents").mkdir(parents=True, exist_ok=True)
+    vibe_config_path = vault / ".vibe" / "config.toml"
+    if vibe_config_path.exists():
+        with open(vibe_config_path, "rb") as f:
+            existing_vibe_cfg: dict[str, Any] = dict(tomllib.load(f))
+    else:
+        existing_vibe_cfg = {}
+
+    if existing_vibe_cfg.get("enable_experimental_hooks"):
+        enable_vibe_hooks = True
+    else:
+        typer.echo(
+            "\nMistral Vibe supports an experimental post-agent-turn hook system (v2.9.0+).\n"
+            "  Enabled:  Natalie auto-indexes the vault after every agent turn.\n"
+            "  Disabled: You must run 'natalie sync' manually after Mistral Vibe\n"
+            "            edits vault files for changes to appear in search results."
+        )
+        enable_vibe_hooks = typer.confirm("Enable experimental Mistral Vibe hooks?", default=True)
+
+    vibe_cfg: dict[str, Any] = {
+        "mcp_servers": [{"name": "natalie", "transport": "stdio", "command": server_bin}],
+    }
+    if enable_vibe_hooks:
+        vibe_cfg["enable_experimental_hooks"] = True
+
+    global_vibe_path = Path.home() / ".vibe" / "config.toml"
+    if global_vibe_path.exists() and global_vibe_path != vibe_config_path:
+        with open(global_vibe_path, "rb") as f:
+            global_vibe_cfg: dict[str, Any] = dict(tomllib.load(f))
+    else:
+        global_vibe_cfg = {}
+    new_vibe_cfg = dict(global_vibe_cfg)
+    _deep_merge_toml(new_vibe_cfg, existing_vibe_cfg)
+    _deep_merge_toml(new_vibe_cfg, vibe_cfg)
+    vibe_config_path.write_bytes(tomli_w.dumps(new_vibe_cfg).encode())
+
+    if enable_vibe_hooks:
+        _merge_toml(
+            vault / ".vibe" / "hooks.toml",
+            {
+                "hooks": [
+                    {
+                        "name": "natalie-sync",
+                        "type": "post_agent_turn",
+                        "command": f"{natalie_bin} sync --json",
+                    }
+                ]
+            },
+        )
+
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "vibe" / "natalie-assistant.toml",
+        vault / ".vibe" / "agents" / "natalie-assistant.toml",
+    )
+    vibe_prompts_dir = Path.home() / ".vibe" / "prompts"
+    vibe_prompts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "vibe" / "natalie-assistant.md",
+        vibe_prompts_dir / "natalie-assistant.md",
+    )
+
+
+def _setup_goose(vault: Path, server_bin: str, natalie_bin: str) -> None:
+    goose_config_dir = Path.home() / ".config" / "goose"
+    goose_config_dir.mkdir(parents=True, exist_ok=True)
+    _merge_yaml(
+        goose_config_dir / "config.yaml",
+        {
+            "extensions": {
+                "natalie": {
+                    "name": "natalie",
+                    "cmd": server_bin,
+                    "args": [],
+                    "enabled": True,
+                    "type": "stdio",
+                    "timeout": 300,
+                }
+            }
+        },
+    )
+
+    goose_plugin_dir = vault / ".agents" / "plugins" / "natalie"
+    (goose_plugin_dir / "hooks").mkdir(parents=True, exist_ok=True)
+    (goose_plugin_dir / "skills" / "natalie-contact-enrichment").mkdir(parents=True, exist_ok=True)
+    (goose_plugin_dir / "plugin.json").write_text(
+        json.dumps(
+            {
+                "name": "natalie",
+                "version": __version__,
+                "description": "Natalie personal assistant — sync hook and skills for Goose",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    _merge_json(
+        goose_plugin_dir / "hooks" / "hooks.json",
+        {
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [{"type": "command", "command": f"{natalie_bin} sync", "timeout": 30}],
+                    }
+                ]
+            }
+        },
+    )
+
+    (vault / ".agents" / "recipes").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "goose" / "natalie-assistant.yaml",
+        vault / ".agents" / "recipes" / "natalie-assistant.yaml",
+    )
+    if not os.environ.get("GOOSE_RECIPE_PATH"):
+        typer.echo(
+            f"\nNote: GOOSE_RECIPE_PATH is not set. To make the natalie-assistant recipe "
+            f"available in Goose, add {vault / '.agents' / 'recipes'} to GOOSE_RECIPE_PATH "
+            f"in your shell profile."
+        )
+
+    skill_src = Path(__file__).parent / "skills" / "natalie-contact-enrichment" / "SKILL.md"
+    skill_dst = goose_plugin_dir / "skills" / "natalie-contact-enrichment" / "SKILL.md"
+    skill_dst.write_text(skill_src.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def _setup_codex(vault: Path, server_bin: str, natalie_bin: str) -> None:
+    codex_dir = vault / ".codex"
+    agents_dir = codex_dir / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    _write_codex_config(codex_dir / "config.toml", server_bin, vault)
+    _write_codex_hook(codex_dir / "hooks.json", natalie_bin)
+    shutil.copy2(
+        Path(__file__).parent / "agents" / "codex" / "natalie-assistant.toml",
+        agents_dir / "natalie-assistant.toml",
+    )
+    typer.echo(
+        "\nCodex configured. Trust this project, review the Natalie hook with /hooks, "
+        "verify the server with /mcp, and restart Codex if it was already running."
+    )
+
+
 @app.command()
 def init(
     vault_path: str = typer.Argument(..., help="Path to the Obsidian vault (created if missing)."),
@@ -236,19 +543,20 @@ def init(
         help="Path to the Python virtual environment.",
     ),
     force: bool = typer.Option(False, "--force", help="Overwrite existing CLAUDE.md/AGENTS.md."),
+    client: list[str] | None = typer.Option(
+        None,
+        "--client",
+        help="Agent client to configure; repeat for multiple clients or pass 'all'.",
+    ),
 ) -> None:
     """Scaffold a vault and write host configuration files."""
     vault = Path(vault_path).expanduser().resolve()
 
     for d in [
         vault / ".natalie",
-        vault / ".claude",
-        vault / ".opencode",
         vault / "Natalie" / "personas",
         vault / "Natalie" / "Documents",
         vault / "Natalie" / "Contacts",
-        vault / ".agents" / "plugins" / "natalie" / "hooks",
-        vault / ".agents" / "plugins" / "natalie" / "skills" / "natalie-contact-enrichment",
     ]:
         d.mkdir(parents=True, exist_ok=True)
 
@@ -258,6 +566,8 @@ def init(
             _DEFAULT_CONFIG_TOML.format(persona=persona, embedding_model=DEFAULT_EMBEDDING_MODEL),
             encoding="utf-8",
         )
+
+    enabled_clients = set(_resolve_clients(config_path, client))
 
     dashboard = vault / "Dashboard.md"
     if not dashboard.exists():
@@ -300,206 +610,16 @@ def init(
     server_bin = str(venv / "bin" / "natalie-server")
     natalie_bin = str(venv / "bin" / "natalie")
 
-    # .mcp.json — canonical Claude Code project-level MCP config (no "type" field)
-    mcp_json = {
-        "mcpServers": {
-            "natalie": {
-                "command": server_bin,
-                "args": [],
-            }
-        }
-    }
-    _merge_json(vault / ".mcp.json", mcp_json)
-
-    # .claude/settings.json — merge natalie PostToolUse hook, preserve all other hooks
-    settings_path = vault / ".claude" / "settings.json"
-    if settings_path.exists():
-        existing_settings: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
-    else:
-        existing_settings = {}
-    natalie_hook_entry: dict[str, Any] = {
-        "matcher": "*",
-        "hooks": [{"type": "command", "command": f"{natalie_bin} sync"}],
-    }
-    existing_hooks = existing_settings.setdefault("hooks", {})
-    post_tool_use: list[Any] = existing_hooks.setdefault("PostToolUse", [])
-    natalie_idx = next(
-        (
-            i
-            for i, entry in enumerate(post_tool_use)
-            if isinstance(entry, dict)
-            and any(isinstance(h, dict) and "natalie" in h.get("command", "") for h in entry.get("hooks", []))
-        ),
-        None,
-    )
-    if natalie_idx is not None:
-        post_tool_use[natalie_idx] = natalie_hook_entry
-    else:
-        post_tool_use.append(natalie_hook_entry)
-    settings_path.write_text(json.dumps(existing_settings, indent=2), encoding="utf-8")
-
-    # .claude/agents/ — Claude Code subagent definition (overwrite on upgrade)
-    claude_agents_dir = vault / ".claude" / "agents"
-    claude_agents_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(
-        Path(__file__).parent / "agents" / "claude" / "natalie-assistant.md",
-        claude_agents_dir / "natalie-assistant.md",
-    )
-
-    opencode_cfg = {
-        "$schema": "https://opencode.ai/config.json",
-        "mcp": {
-            "natalie": {
-                "type": "local",
-                "command": [server_bin],
-                "enabled": True,
-            }
-        },
-    }
-    # opencode.json — merge so other MCP entries are preserved
-    _merge_json(vault / "opencode.json", opencode_cfg)
-
-    # opencode.json — merge natalie-assistant subagent definition
-    # Uses "agent" as the top-level key (matches OpenCode config schema alongside "mcp").
-    # _deep_merge is keyed on "natalie-assistant" dict key — idempotent on re-run.
-    _agent_oc = json.loads(
-        (Path(__file__).parent / "agents" / "opencode" / "natalie-assistant.json").read_text(encoding="utf-8")
-    )
-    _merge_json(vault / "opencode.json", _agent_oc)
-
-    hooks_cfg = {"tool.execute.after": {"command": f"{natalie_bin} sync"}}
-    # .opencode/hooks.json — merge
-    _merge_json(vault / ".opencode" / "hooks.json", hooks_cfg)
-
-    # .vibe/ — Mistral Vibe
-    (vault / ".vibe").mkdir(parents=True, exist_ok=True)
-
-    vibe_config_path = vault / ".vibe" / "config.toml"
-    existing_vibe_cfg: dict[str, Any] = {}
-    if vibe_config_path.exists():
-        with open(vibe_config_path, "rb") as f:
-            existing_vibe_cfg = dict(tomllib.load(f))
-
-    if existing_vibe_cfg.get("enable_experimental_hooks"):
-        enable_vibe_hooks = True
-    else:
-        typer.echo(
-            "\nMistral Vibe supports an experimental post-agent-turn hook system (v2.9.0+).\n"
-            "  Enabled:  Natalie auto-indexes the vault after every agent turn.\n"
-            "  Disabled: You must run 'natalie sync' manually after Mistral Vibe\n"
-            "            edits vault files for changes to appear in search results."
-        )
-        enable_vibe_hooks = typer.confirm("Enable experimental Mistral Vibe hooks?", default=True)
-
-    vibe_cfg: dict[str, Any] = {
-        "mcp_servers": [{"name": "natalie", "transport": "stdio", "command": server_bin}],
-    }
-    if enable_vibe_hooks:
-        vibe_cfg["enable_experimental_hooks"] = True
-
-    # Mistral Vibe gives the project config full precedence with no fallback
-    # merge — the global ~/.vibe/config.toml is silently ignored when a project
-    # config exists.  We compensate by copying the global config as the base so
-    # all user settings (models, providers, mcp_servers, etc.) are preserved.
-    # Layering: global → existing project config (user overrides) → natalie's additions.
-    global_vibe_path = Path.home() / ".vibe" / "config.toml"
-    if global_vibe_path.exists() and global_vibe_path != vibe_config_path:
-        with open(global_vibe_path, "rb") as f:
-            global_vibe_cfg: dict[str, Any] = dict(tomllib.load(f))
-    else:
-        global_vibe_cfg = {}
-
-    new_vibe_cfg = dict(global_vibe_cfg)
-    _deep_merge_toml(new_vibe_cfg, existing_vibe_cfg)
-    _deep_merge_toml(new_vibe_cfg, vibe_cfg)
-    vibe_config_path.write_bytes(tomli_w.dumps(new_vibe_cfg).encode())
-
-    if enable_vibe_hooks:
-        _merge_toml(
-            vault / ".vibe" / "hooks.toml",
-            {
-                "hooks": [
-                    {
-                        "name": "natalie-sync",
-                        "type": "post_agent_turn",
-                        "command": f"{natalie_bin} sync --json",
-                    }
-                ]
-            },
-        )
-
-    # .vibe/agents/ — Mistral Vibe subagent TOML (project-level definition)
-    (vault / ".vibe" / "agents").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(
-        Path(__file__).parent / "agents" / "vibe" / "natalie-assistant.toml",
-        vault / ".vibe" / "agents" / "natalie-assistant.toml",
-    )
-    # ~/.vibe/prompts/ — system prompt for the subagent (user-level, outside vault)
-    vibe_prompts_dir = Path.home() / ".vibe" / "prompts"
-    vibe_prompts_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(
-        Path(__file__).parent / "agents" / "vibe" / "natalie-assistant.md",
-        vibe_prompts_dir / "natalie-assistant.md",
-    )
-
-    # Goose — global ~/.config/goose/config.yaml (MCP extension)
-    goose_config_dir = Path.home() / ".config" / "goose"
-    goose_config_dir.mkdir(parents=True, exist_ok=True)
-    goose_ext: dict[str, Any] = {
-        "extensions": {
-            "natalie": {
-                "name": "natalie",
-                "cmd": server_bin,
-                "args": [],
-                "enabled": True,
-                "type": "stdio",
-                "timeout": 300,
-            }
-        }
-    }
-    _merge_yaml(goose_config_dir / "config.yaml", goose_ext)
-
-    # Goose — project plugin: plugin.json
-    goose_plugin_dir = vault / ".agents" / "plugins" / "natalie"
-    goose_plugin_manifest: dict[str, Any] = {
-        "name": "natalie",
-        "version": __version__,
-        "description": "Natalie personal assistant — sync hook and skills for Goose",
-    }
-    (goose_plugin_dir / "plugin.json").write_text(
-        json.dumps(goose_plugin_manifest, indent=2), encoding="utf-8"
-    )
-
-    # Goose — project plugin: hooks/hooks.json
-    goose_hooks: dict[str, Any] = {
-        "hooks": {
-            "PostToolUse": [
-                {
-                    "matcher": ".*",
-                    "hooks": [{"type": "command", "command": f"{natalie_bin} sync", "timeout": 30}],
-                }
-            ]
-        }
-    }
-    _merge_json(goose_plugin_dir / "hooks" / "hooks.json", goose_hooks)
-
-    # Goose — recipe: natalie-assistant
-    (vault / ".agents" / "recipes").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(
-        Path(__file__).parent / "agents" / "goose" / "natalie-assistant.yaml",
-        vault / ".agents" / "recipes" / "natalie-assistant.yaml",
-    )
-    if not os.environ.get("GOOSE_RECIPE_PATH"):
-        typer.echo(
-            f"\nNote: GOOSE_RECIPE_PATH is not set. To make the natalie-assistant recipe "
-            f"available in Goose, add {vault / '.agents' / 'recipes'} to GOOSE_RECIPE_PATH "
-            f"in your shell profile."
-        )
-
-    # Goose — project plugin: companion skill (copy from installed package)
-    skill_src = Path(__file__).parent / "skills" / "natalie-contact-enrichment" / "SKILL.md"
-    skill_dst = goose_plugin_dir / "skills" / "natalie-contact-enrichment" / "SKILL.md"
-    skill_dst.write_text(skill_src.read_text(encoding="utf-8"), encoding="utf-8")
+    if "claude" in enabled_clients:
+        _setup_claude(vault, server_bin, natalie_bin)
+    if "opencode" in enabled_clients:
+        _setup_opencode(vault, server_bin, natalie_bin)
+    if "vibe" in enabled_clients:
+        _setup_vibe(vault, server_bin, natalie_bin)
+    if "goose" in enabled_clients:
+        _setup_goose(vault, server_bin, natalie_bin)
+    if "codex" in enabled_clients:
+        _setup_codex(vault, server_bin, natalie_bin)
 
     # Companion skills — copy all skills to <vault>/.agents/skills/ (shared auto-discovery path).
     # Mistral Vibe discovers from .agents/skills/; Claude Code discovers via the symlink below.
@@ -510,17 +630,17 @@ def init(
         if skill_dir.is_dir():
             shutil.copytree(skill_dir, agents_skills / skill_dir.name, dirs_exist_ok=True)
 
-    # .claude/skills/ — per-skill symlinks for Claude Code auto-discovery.
-    # Symlinking each package skill individually leaves user-installed skills untouched.
-    claude_skills_dir = vault / ".claude" / "skills"
-    claude_skills_dir.mkdir(parents=True, exist_ok=True)
-    for skill_dir in sorted(skills_pkg.iterdir()):
-        if skill_dir.is_dir():
-            link = claude_skills_dir / skill_dir.name
-            if link.is_symlink():
-                link.unlink()
-            if not link.exists():
-                link.symlink_to(Path("..") / ".." / ".agents" / "skills" / skill_dir.name)
+    if "claude" in enabled_clients:
+        # Symlinking each package skill individually leaves user-installed skills untouched.
+        claude_skills_dir = vault / ".claude" / "skills"
+        claude_skills_dir.mkdir(parents=True, exist_ok=True)
+        for skill_dir in sorted(skills_pkg.iterdir()):
+            if skill_dir.is_dir():
+                link = claude_skills_dir / skill_dir.name
+                if link.is_symlink():
+                    link.unlink()
+                if not link.exists():
+                    link.symlink_to(Path("..") / ".." / ".agents" / "skills" / skill_dir.name)
 
     typer.echo(f"Vault initialized at: {vault}")
     if _is_new_vault:

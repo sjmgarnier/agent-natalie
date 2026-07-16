@@ -131,6 +131,26 @@ def test_render_instructions_agents_contains_tool_disambiguation(vault, config):
     assert "watcher_status" in output
 
 
+def test_render_instructions_supplements_delegation_import(vault, config):
+    claude = render_instructions(config, vault, target="claude")
+    agents = render_instructions(config, vault, target="agents")
+    assert "@.claude/skills/natalie-delegate/SKILL.md" in claude
+    assert "@./.agents/skills/natalie-delegate/SKILL.md" in agents
+    guidance = "Before delegating work, load and follow the `natalie-delegate` skill."
+    assert guidance in claude
+    assert guidance in agents
+
+
+def test_instruction_templates_differ_only_by_import_paths():
+    from pathlib import Path
+
+    templates = Path(__file__).parents[1] / "natalie" / "templates"
+    claude = (templates / "claude.md.jinja").read_text(encoding="utf-8")
+    agents = (templates / "agents.md.jinja").read_text(encoding="utf-8")
+    normalized = agents.replace("@./.agents/skills/", "@.claude/skills/")
+    assert normalized == claude
+
+
 def test_render_instructions_contains_tool_priority_section(vault, config):
     for target in ("claude", "agents"):
         output = render_instructions(config, vault, target=target)

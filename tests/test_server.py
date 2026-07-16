@@ -9,6 +9,52 @@ import pytest
 import natalie.server as srv
 from natalie.features import memory as mem
 
+
+def test_mcp_server_advertises_client_neutral_instructions() -> None:
+    instructions = srv.MCP_INSTRUCTIONS
+    assert srv.mcp.instructions == instructions
+    assert "vault-managed content" in instructions[:512]
+    for required in ("conventions", "memory", "note_move", "tasks", "documents", "contacts"):
+        assert required in instructions
+    for forbidden in ("Claude", "OpenCode", "Codex", "persona", "model"):
+        assert forbidden not in instructions
+
+
+@pytest.mark.asyncio
+async def test_mcp_server_instruction_change_preserves_tool_contract() -> None:
+    tools = await srv.mcp.list_tools()
+    assert {tool.name for tool in tools} == {
+        "ping",
+        "watcher_status",
+        "note_list",
+        "vault_stats",
+        "memory_search",
+        "memory_store",
+        "note_read",
+        "note_write",
+        "note_move",
+        "note_frontmatter_update",
+        "convention_list",
+        "convention_add",
+        "convention_delete",
+        "convention_update",
+        "onboarding_status",
+        "onboarding_complete",
+        "task_list",
+        "task_capture",
+        "task_complete",
+        "task_cancel",
+        "task_update",
+        "document_file",
+        "document_list",
+        "contact_get",
+        "contact_update",
+        "contact_list",
+        "contact_search",
+    }
+    assert all(tool.inputSchema for tool in tools)
+
+
 # ---------------------------------------------------------------------------
 # main() — vault-not-found path
 # ---------------------------------------------------------------------------

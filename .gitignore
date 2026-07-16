@@ -24,3 +24,4 @@ uv.lock
 # internal planning / spec artifacts — keep local only
 docs/
 openspec/
+/.codex

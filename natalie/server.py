@@ -26,7 +26,18 @@ from .features.watcher import start_watcher
 from .utils import require_md_path, safe_join
 from .vault import require_vault
 
-mcp = FastMCP("natalie")
+MCP_INSTRUCTIONS = """\
+Natalie manages the user's local Obsidian vault. Prefer Natalie tools over filesystem or generic tools for
+vault-managed content. Load applicable conventions before searching contextual memory. Use note_move, not
+filesystem moves, to relocate vault notes so indexes and wikilinks stay intact.
+
+Route information to the correct store: convention tools for recurring rules and preferences; memory tools
+for hidden facts and decisions; note tools for user-visible vault content; task tools for tasks; document
+tools for registered documents; and contact tools for contacts. Use Natalie read and search tools to verify
+writes.
+"""
+
+mcp = FastMCP("natalie", instructions=MCP_INSTRUCTIONS)
 
 # Upper bound for caller-supplied limit/top_n params — prevents an agent
 # passing an unbounded value from triggering an oversized DB scan or

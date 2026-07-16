@@ -10,6 +10,7 @@ def test_load_config_returns_defaults_when_no_file(vault):
     assert cfg.documents.directory == "Natalie/Documents"
     assert cfg.contacts.directory == "Natalie/Contacts"
     assert cfg.tasks.note == "Tasks.md"
+    assert cfg.clients.enabled is None
 
 
 def test_load_config_reads_persona_name(vault):
@@ -49,3 +50,17 @@ def test_load_config_ignores_unknown_keys(vault):
     config_path.write_text('[persona]\nname = "donna"\nunknown_key = "ignored"\n')
     cfg = load_config(vault)
     assert cfg.persona.name == "donna"  # must not raise TypeError
+
+
+def test_load_config_reads_clients(vault):
+    config_path = vault / "Natalie" / "config.toml"
+    config_path.write_text('[clients]\nenabled = ["claude", "codex"]\n')
+    cfg = load_config(vault)
+    assert cfg.clients.enabled == ["claude", "codex"]
+
+
+def test_load_config_ignores_unknown_client_config_keys(vault):
+    config_path = vault / "Natalie" / "config.toml"
+    config_path.write_text('[clients]\nenabled = ["codex"]\nfuture_setting = true\n')
+    cfg = load_config(vault)
+    assert cfg.clients.enabled == ["codex"]

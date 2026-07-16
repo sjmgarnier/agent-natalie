@@ -29,6 +29,17 @@ def test_goose_recipe_exists() -> None:
     assert (_agents_dir() / "goose" / "natalie-assistant.yaml").exists()
 
 
+def test_codex_agent_exists_and_is_valid_toml() -> None:
+    import tomllib
+
+    path = _agents_dir() / "codex" / "natalie-assistant.toml"
+    assert path.exists()
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    assert set(data) == {"name", "description", "developer_instructions"}
+    assert data["name"] == "natalie-assistant"
+
+
 def test_claude_agent_has_required_frontmatter() -> None:
     content = (_agents_dir() / "claude" / "natalie-assistant.md").read_text(encoding="utf-8")
     assert "name: natalie-assistant" in content

@@ -58,13 +58,46 @@ if [[ "$IS_UPGRADE" == false ]]; then
     PERSONA="${PERSONA:-natalie}"
 fi
 
+# ── Prompt for agent clients ─────────────────────────────────────────────────
+echo ""
+echo "Supported agent clients: claude, opencode, vibe, goose, codex"
+if [[ "$IS_UPGRADE" == true ]]; then
+    read -rp "Clients to configure (comma-separated; blank keeps the vault's current selection): " CLIENT_INPUT
+else
+    read -rp "Clients to configure (comma-separated; default: claude,opencode,vibe,goose): " CLIENT_INPUT
+    CLIENT_INPUT="${CLIENT_INPUT:-claude,opencode,vibe,goose}"
+fi
+
+CLIENT_ARGS=()
+SELECTED_CLIENTS=()
+if [[ -n "$CLIENT_INPUT" ]]; then
+    CLIENT_INPUT="${CLIENT_INPUT//,/ }"
+    read -ra SELECTED_CLIENTS <<< "$CLIENT_INPUT"
+    _HAS_ALL=false
+    for _CLIENT in "${SELECTED_CLIENTS[@]}"; do
+        case "$_CLIENT" in
+            claude|opencode|vibe|goose|codex) ;;
+            all) _HAS_ALL=true ;;
+            *) echo "Unknown client: $_CLIENT"; exit 1 ;;
+        esac
+    done
+    if [[ "$_HAS_ALL" == true && "${#SELECTED_CLIENTS[@]}" -ne 1 ]]; then
+        echo "Client 'all' cannot be combined with named clients."
+        exit 1
+    fi
+    for _CLIENT in "${SELECTED_CLIENTS[@]}"; do
+        CLIENT_ARGS+=(--client "$_CLIENT")
+    done
+fi
+
 # ── Confirm ───────────────────────────────────────────────────────────────────
 echo ""
-echo "natalie will configure the following in: $VAULT_PATH"
-echo "  .mcp.json, .claude/settings.json              (Claude Code)"
-echo "  opencode.json, .opencode/hooks.json           (OpenCode)"
-echo "  .vibe/config.toml, .vibe/hooks.toml           (Mistral Vibe)"
-echo "  ~/.config/goose/config.yaml, .agents/plugins/ (Goose)"
+echo "natalie will configure the selected clients in: $VAULT_PATH"
+if [[ "${#SELECTED_CLIENTS[@]}" -eq 0 ]]; then
+    echo "  Existing stored selection (legacy four-client fallback if none is stored)"
+else
+    echo "  ${SELECTED_CLIENTS[*]}"
+fi
 if [[ "$IS_UPGRADE" == false ]]; then
     echo "  Dashboard.md, CLAUDE.md, AGENTS.md     (created if absent)"
     echo "  .obsidian/snippets/                    (3 CSS files, created if absent)"
@@ -81,7 +114,7 @@ fi
 # ── Initialize vault ──────────────────────────────────────────────────────────
 echo ""
 echo "Configuring vault at $VAULT_PATH..."
-"$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR"
+"$NATALIE" init "$VAULT_PATH" --persona "$PERSONA" --venv-path "$VENV_DIR" ${CLIENT_ARGS[@]+"${CLIENT_ARGS[@]}"}
 
 # On upgrade, regen CLAUDE.md / AGENTS.md to pick up updated persona templates
 if [[ "$IS_UPGRADE" == true ]]; then
@@ -122,6 +155,7 @@ if [[ "$IS_UPGRADE" == true ]]; then
     echo "       cd '$VAULT_PATH' && opencode   # OpenCode"
     echo "       cd '$VAULT_PATH' && vibe       # Mistral Vibe"
     echo "       cd '$VAULT_PATH' && goose      # Goose"
+    echo "       cd '$VAULT_PATH' && codex      # Codex"
     echo ""
     echo "  To configure additional vaults: run 'natalie init <path>' directly."
 else
@@ -150,6 +184,7 @@ else
     echo "       cd '$VAULT_PATH' && opencode   # OpenCode"
     echo "       cd '$VAULT_PATH' && vibe       # Mistral Vibe"
     echo "       cd '$VAULT_PATH' && goose      # Goose"
+    echo "       cd '$VAULT_PATH' && codex      # Codex"
     echo "     Each reads its config files and connects to natalie-server automatically."
     echo "     The natalie tools (memory_search, note_write, task_list, …) will appear"
     echo "     in the tool list."

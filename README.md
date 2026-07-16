@@ -6,7 +6,7 @@
 
 A portable personal assistant MCP server for AI coding agents. Natalie lives in your Obsidian vault — memory, tasks, contacts, and conventions stay fully local and offline, no cloud or external API required.
 
-Tested with Claude Code, OpenCode, Mistral Vibe, and Goose. Any MCP-compatible agent
+Tested with Claude Code, OpenCode, Mistral Vibe, Goose, and Codex. Any MCP-compatible agent
 client should work — see [Connecting your agent](#connecting-your-agent) below.
 
 ## What it does
@@ -37,8 +37,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/mai
 The script:
 1. Installs `uv` if missing
 2. Creates `~/.natalie/.venv/` with an isolated Python environment
-3. Prompts for your vault path and persona
-4. Scaffolds the vault (dashboard, CLAUDE.md, AGENTS.md, CSS snippets, MCP config)
+3. Prompts for your vault path, persona, and agent clients
+4. Scaffolds the vault and configuration for the selected clients
 5. Builds the initial search index
 
 > **Note:** Step 5 downloads the embedding model (~130 MB) on first run. This is cached
@@ -94,8 +94,23 @@ Click **Dashboard.md** in the vault root. Switch to Reading view if it doesn't r
 ## Connecting your agent
 
 `natalie-server` is a standard MCP server. Any MCP-compatible agent client can use it.
-`natalie init` pre-wires **Claude Code**, **OpenCode**, **Mistral Vibe**, and **Goose** automatically;
+`natalie init` pre-wires **Claude Code**, **OpenCode**, **Mistral Vibe**, **Goose**, and **Codex** when selected;
 for other clients follow the generic instructions below.
+
+### Selecting clients
+
+The installer asks which clients to configure. Direct CLI use accepts a repeatable option:
+
+```bash
+natalie init /path/to/vault --client codex
+natalie init /path/to/vault --client claude --client codex
+natalie init /path/to/vault --client all
+```
+
+The exact selection is stored in `Natalie/config.toml` and reused on later runs. Vaults
+without stored selection retain the previous default—Claude Code, OpenCode, Vibe, and
+Goose—so Codex is never added silently. Changing the selection stops future management of
+an omitted client but does not delete files that Natalie previously generated for it.
 
 ### Claude Code
 
@@ -153,6 +168,26 @@ Goose discovers the natalie extension globally and the project plugin automatica
 Outside a vault directory, all natalie tools return a clear "no vault found" message —
 the extension loads cleanly without broken-extension errors.
 
+### Codex
+
+Select Codex during installation or add it to an existing vault explicitly:
+
+```bash
+natalie init /path/to/your/vault --client claude --client codex
+cd /path/to/your/vault
+codex
+```
+
+Codex reads `.codex/config.toml`, starts `natalie-server` with the vault as its working
+directory, discovers Natalie skills from `.agents/skills/`, and loads the project
+`natalie-assistant` from `.codex/agents/`. Trust the vault project so Codex loads its
+project configuration, then use `/hooks` to review and trust the once-per-turn Natalie
+sync hook. Use `/mcp` to verify the server. Restart Codex if it was already running when
+configuration changed.
+
+This local stdio setup works with local Codex clients—the Codex CLI, IDE extension, and
+local tasks in the ChatGPT desktop app. Hosted ChatGPT web cannot launch the local server.
+
 ### Other MCP clients
 
 Point your client at the `natalie-server` binary and run it from inside the vault directory:
@@ -175,10 +210,10 @@ agent session.
 ## CLI commands
 
 ```bash
-natalie sync [--full]              # Rebuild vault index (--full wipes and reindexes everything)
+natalie sync [--full] [--quiet]    # Rebuild vault index; --quiet is for lifecycle hooks
 natalie config --persona donna     # Switch persona and regenerate CLAUDE.md / AGENTS.md
 natalie config --regen             # Regenerate CLAUDE.md / AGENTS.md without changing persona
-natalie init <vault-path>          # Scaffold a new vault (called by install.sh)
+natalie init <vault-path> [--client NAME]...  # Scaffold and select agent clients
 ```
 
 ---
@@ -235,6 +270,7 @@ A pre-configured background subagent with full access to natalie MCP tools. Nata
 | OpenCode | merged into `<vault>/opencode.json` under `"agent"` key |
 | Mistral Vibe | `<vault>/.vibe/agents/natalie-assistant.toml` + `~/.vibe/prompts/natalie-assistant.md` |
 | Goose | `<vault>/.agents/recipes/natalie-assistant.yaml` (add `<vault>/.agents/recipes/` to `GOOSE_RECIPE_PATH`) |
+| Codex | `<vault>/.codex/agents/natalie-assistant.toml` (inherits the parent model, MCP, and permission configuration) |
 
 ---
 
@@ -294,6 +330,9 @@ denied    = []
 preferred = []   # e.g. ["obsidian", "github"]
 denied    = []
 
+[clients]
+enabled = ["claude", "codex"]
+
 [features.documents]
 directory = "Natalie/Documents"
 
@@ -322,7 +361,9 @@ corruption. Keep one active session at a time.
 bash <(curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-natalie/main/install.sh)
 ```
 
-The script detects an existing install and offers to upgrade in place.
+The script detects an existing install and offers to upgrade in place. Leave the client
+prompt blank to retain the vault's stored selection. Older vaults without a `[clients]`
+section retain the legacy four-client set until Codex is explicitly selected.
 
 ---
 

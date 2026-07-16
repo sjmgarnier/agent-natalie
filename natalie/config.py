@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+SUPPORTED_CLIENTS: tuple[str, ...] = ("claude", "opencode", "vibe", "goose", "codex")
+LEGACY_CLIENTS: tuple[str, ...] = ("claude", "opencode", "vibe", "goose")
+
 
 def _filter(cls: type[Any], data: dict[str, Any]) -> dict[str, Any]:
     known = {f.name for f in dataclasses.fields(cls)}
@@ -51,6 +54,13 @@ class TasksConfig:
 
 
 @dataclass
+class ClientsConfig:
+    # None distinguishes an older vault with no persisted selection from a
+    # deliberately stored enabled-client list.
+    enabled: list[str] | None = None
+
+
+@dataclass
 class NatalieConfig:
     persona: PersonaConfig = field(default_factory=PersonaConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
@@ -59,6 +69,7 @@ class NatalieConfig:
     documents: DocumentsConfig = field(default_factory=DocumentsConfig)
     contacts: ContactsConfig = field(default_factory=ContactsConfig)
     tasks: TasksConfig = field(default_factory=TasksConfig)
+    clients: ClientsConfig = field(default_factory=ClientsConfig)
 
 
 def load_config(vault: Path) -> NatalieConfig:
@@ -76,6 +87,8 @@ def load_config(vault: Path) -> NatalieConfig:
         cfg.skills = SkillsConfig(**_filter(SkillsConfig, data["skills"]))
     if "mcps" in data:
         cfg.mcps = McpsConfig(**_filter(McpsConfig, data["mcps"]))
+    if "clients" in data:
+        cfg.clients = ClientsConfig(**_filter(ClientsConfig, data["clients"]))
     if "features" in data:
         feats = data["features"]
         if "documents" in feats:
